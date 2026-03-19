@@ -1,0 +1,96 @@
+  body.theme-white .data-category-item,
+  body.theme-white .data-preset-item {
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    font-size: calc(12px * var(--ui-font-scale));
+  }
+  body.theme-white .data-category-item .screensaver-saved-main,
+  body.theme-white .data-preset-item .screensaver-saved-main {
+    gap: 3px;
+  }
+  body.theme-white .data-preset-item .screensaver-saved-name {
+    font-size: calc(12.5px * var(--ui-font-scale));
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  body.theme-white .data-category-item .screensaver-saved-name {
+    font-size: calc(12.5px * var(--ui-font-scale));
+    font-weight: 400;
+    letter-spacing: 0.2px;
+  }
+  body.theme-white .screensaver-saved-item.data-category-item,
+  body.theme-white .screensaver-saved-item.data-preset-item {
+    border-color: #ddd1c0;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 243, 236, 0.985) 100%);
+    color: #8f7964;
+  }
+  body.theme-white .screensaver-saved-item.data-category-item .screensaver-saved-name,
+  body.theme-white .screensaver-saved-item.data-preset-item .screensaver-saved-name {
+    color: #92795e;
+  }
+  body.theme-white .screensaver-saved-item.data-category-item.is-selected,
+  body.theme-white .screensaver-saved-item.data-preset-item.is-selected {
+    border-color: #cfbea8;
+    background:
+      linear-gradient(135deg, rgba(255, 253, 249, 0.995) 0%, rgba(244, 238, 229, 0.995) 54%, rgba(236, 227, 213, 0.995) 100%);
+    color: #8b735b;
+    box-shadow: none;
+  }
+  body.theme-white .screensaver-saved-item.data-category-item.is-selected .screensaver-saved-name,
+  body.theme-white .screensaver-saved-item.data-preset-item.is-selected .screensaver-saved-name {
+    color: #927459;
+  }
+  .data-preset-item.is-active,
+  .data-preset-item.is-active.is-selected {
+    border-color: rgba(138, 186, 144, 0.72);
+    background: rgba(116, 156, 122, 0.16);
+    color: rgba(235, 255, 238, 0.96);
+    box-shadow: none;
+  }
+  body.theme-white .screensaver-saved-item.data-preset-item.is-active,
+  body.theme-white .screensaver-saved-item.data-preset-item.is-active.is-selected {
+    border-color: #bed0c0;
+    background:
+      linear-gradient(135deg, rgba(250, 253, 250, 0.995) 0%, rgba(235, 243, 236, 0.995) 54%, rgba(223, 234, 224, 0.995) 100%);
+    color: #6f8574;
+    box-shadow: none;
+  }
+  body.theme-white .screensaver-saved-item.data-preset-item.is-active .screensaver-saved-name,
+  body.theme-white .screensaver-saved-item.data-preset-item.is-active.is-selected .screensaver-saved-name {
+    color: #738678;
+  }
+  .data-preset-delete-button {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .data-entry-list {
+    flex: 1;
+    min-height: 0;
+  }
+  .data-entry-item {
+    align-items: flex-start;
+    cursor: default;
+  }
+  .data-entry-extra {
+    color: var(--window-soft);
+    font-size: calc(10px * var(--ui-font-scale));
+    line-height: 1.4;
+    word-break: break-all;
+    white-space: normal;
+  }
+  .data-empty-line {
+    padding: 2px 1px;
+  }
+  .data-preset-editor {
+    flex: 1;
+    min-height: 0;
+  }
+  .data-preset-items-input {
+    flex: 1;
+    min-height: 0;
+  }

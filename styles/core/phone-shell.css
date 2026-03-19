@@ -1,0 +1,223 @@
+﻿  .flip-phone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    scale: var(--embedded-phone-scale, 1);
+    filter: none;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    will-change: transform;
+  }
+  .flip-phone.is-closed {
+    transform: none;
+  }
+  .flip-phone.network-cinema {
+    transform-origin: center center;
+    transition: transform 0.82s cubic-bezier(0.24, 0.82, 0.3, 1.02);
+  }
+  .flip-phone.network-cinema.network-cinema-landscape {
+    transform: rotate(90deg);
+  }
+  /* 上盖容器 - 3D效果核心 */
+  .upper-flip {
+    width: 250px;
+    height: 362px;
+    position: relative;
+    transform-origin: bottom;
+    transition: transform 0.8s cubic-bezier(0.68, 0, 0.265, 1.18);
+    transform-style: preserve-3d;
+    z-index: 5;
+    transform: none;
+    will-change: transform;
+  }
+  .flip-phone.network-cinema .upper-flip {
+    transition: transform 0.82s cubic-bezier(0.22, 0.76, 0.2, 1);
+  }
+  .flip-phone.network-cinema.network-cinema-yflip .upper-flip {
+    transform: rotateY(180deg);
+  }
+  .flip-phone.network-cinema.network-cinema-yflip:not(.network-cinema-back-open):not(.network-cinema-closed):not(.network-cinema-landscape) .upper-flip {
+    transform-origin: center center;
+  }
+  .flip-phone.network-cinema.network-cinema-back-open .upper-flip {
+    transform-origin: bottom center;
+    transform: rotateY(180deg);
+  }
+  .flip-phone.network-cinema.network-cinema-closed .upper-flip,
+  .flip-phone.network-cinema.network-cinema-landscape .upper-flip {
+    transform-origin: bottom center;
+    transform: rotateY(180deg) rotateX(-180deg);
+  }
+  .flip-phone.is-closed .upper-flip {
+    transform: rotateX(-180deg);
+  }
+  
+  /* 正面（屏幕）和背面（外壳） */
+  .flip-front, .flip-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    box-sizing: border-box;
+  }
+
+  .flip-front {
+    background: var(--shell-front);
+    border: 3px solid var(--shell-border);
+    border-bottom: none;
+    border-radius: 15px 15px 0 0;
+    padding: 15px;
+    z-index: 2;
+  }
+
+  .flip-back {
+    background: var(--shell-back);
+    border: 3px solid var(--shell-border-strong);
+    border-radius: 18px;
+    transform: rotateY(180deg) rotateZ(180deg); /* 翻转到背面 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* 背面装饰 */
+  .back-logo {
+    width: 80px;
+    height: 80px;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 20px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.16), inset 0 0 0 2px rgba(0,0,0,0.12);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+  }
+  .back-logo::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.12) 18%, rgba(255,255,255,0.045) 34%, rgba(255,255,255,0.015) 46%, rgba(255,255,255,0.08) 58%, rgba(255,255,255,0.015) 70%, rgba(255,255,255,0) 82%),
+      radial-gradient(circle at 72% 78%, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.025) 18%, rgba(255,255,255,0) 32%),
+      linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 30%, rgba(255,255,255,0.01) 55%, rgba(255,255,255,0.04) 100%);
+    backdrop-filter: blur(1.2px) saturate(0.97) brightness(1.03);
+    -webkit-backdrop-filter: blur(1.2px) saturate(0.97) brightness(1.03);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .back-logo::after {
+    content: '';
+    position: absolute;
+    inset: 0.5px;
+    border-radius: 50%;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.22) 8%, rgba(255,255,255,0.08) 18%, rgba(255,255,255,0.02) 28%, rgba(255,255,255,0) 38%),
+      radial-gradient(circle at 50% 50%, rgba(255,255,255,0) 72%, rgba(255,255,255,0.1) 83%, rgba(255,255,255,0.28) 90%, rgba(255,255,255,0.08) 96%, rgba(255,255,255,0) 100%),
+      conic-gradient(from 210deg, rgba(255,255,255,0.04) 0deg, rgba(255,255,255,0.2) 52deg, rgba(255,255,255,0.08) 105deg, rgba(255,255,255,0.02) 165deg, rgba(255,255,255,0.01) 255deg, rgba(255,255,255,0.12) 320deg, rgba(255,255,255,0.04) 360deg);
+    box-shadow: inset 0 0 0 0.45px rgba(255,255,255,0.34), inset 0 0 1.8px rgba(255,255,255,0.12), inset 0 1px 1.4px rgba(255,255,255,0.08), inset 0 -1.2px 2.4px rgba(0,0,0,0.025);
+    filter: blur(0.35px);
+    z-index: 3;
+    pointer-events: none;
+  }
+  .back-logo-thumb {
+    position: absolute;
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+    object-fit: cover;
+    object-position: center;
+    filter: contrast(1.04) saturate(1.03);
+    display: none;
+  }
+  .back-logo.has-image .back-logo-thumb {
+    display: block;
+  }
+  .back-logo svg {
+    width: 40px;
+    height: 40px;
+    fill: var(--logo-fill);
+    position: relative;
+    z-index: 1;
+  }
+  .back-logo.has-image svg {
+    display: none;
+  }
+  .outer-display {
+    width: 100px;
+    height: 40px;
+    background: var(--outer-display-bg);
+    margin-top: 30px;
+    border: 1px solid var(--outer-display-border);
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--outer-display-text);
+    font-size: 11px;
+    box-shadow: inset 0 0 5px #000;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.theme-white .outer-display {
+    box-shadow: none;
+  }
+  .outer-display.alert {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 8px var(--signal-glow), 0 0 8px var(--signal-glow);
+    animation: outer-alert-blink 0.7s infinite;
+  }
+  @keyframes outer-alert-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* 转轴 */
+  .hinge {
+    width: 250px;
+    height: 18px;
+    background: var(--hinge-bg);
+    border-radius: 9px;
+    border: 2px solid var(--hinge-border);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+    margin: -2px 0; /* 紧贴上下部分 */
+  }
+  .hinge-detail {
+    width: 40px;
+    height: 100%;
+    background: var(--hinge-detail);
+  }
+  /* 下身 */
+  .lower-body {
+    width: 250px;
+    height: 350px;
+    background: var(--shell-back);
+    border: 3px solid var(--shell-border);
+    border-top: none;
+    border-radius: 0 0 20px 20px;
+    padding: 16px 15px 14px;
+    position: relative;
+    box-sizing: border-box;
+    box-shadow: inset 0 -5px 15px rgba(0,0,0,0.5);
+    margin-top: -5px;
+    transform: none;
+    transform-origin: top;
+  }
+

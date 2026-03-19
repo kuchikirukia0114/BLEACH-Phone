@@ -1,0 +1,111 @@
+﻿  .screensaver-saved-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .screensaver-saved-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 5px 7px;
+    border: 1px solid var(--window-box-border);
+    background: var(--window-list-bg);
+    color: var(--window-text);
+    text-align: left;
+    font-size: calc(11px * var(--ui-font-scale));
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .screensaver-saved-item.is-selected {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px var(--menu-hover-shadow);
+    color: var(--accent);
+  }
+  body.theme-white .screensaver-saved-item {
+    border-color: #ddd1c0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 243, 236, 0.985) 100%);
+    color: #8f7964;
+    border-radius: 9px;
+  }
+  body.theme-white .screensaver-saved-item.is-selected {
+    border-color: #cfbea8;
+    box-shadow: none;
+    background: linear-gradient(135deg, rgba(255, 253, 249, 0.995) 0%, rgba(244, 238, 229, 0.995) 54%, rgba(236, 227, 213, 0.995) 100%);
+    color: #8b735b;
+  }
+  .screensaver-saved-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .screensaver-saved-name {
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    max-width: 100%;
+  }
+  body.theme-white .screensaver-saved-name {
+    color: #92795e;
+  }
+  body.theme-white .screensaver-saved-item.is-selected .screensaver-saved-name {
+    color: #927459;
+  }
+  .screensaver-saved-name-track {
+    display: inline-flex;
+    align-items: center;
+    min-width: max-content;
+    max-width: none;
+  }
+  .screensaver-saved-name-copy {
+    display: inline-block;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .screensaver-saved-name-gap {
+    display: inline-block;
+    width: var(--network-marquee-gap, 22px);
+    flex: 0 0 auto;
+  }
+  .screensaver-saved-item.is-selected .screensaver-saved-name.is-marquee {
+    text-overflow: clip;
+  }
+  .screensaver-saved-item.is-selected .screensaver-saved-name.is-marquee .screensaver-saved-name-track {
+    animation: network-title-marquee 8.8s linear infinite;
+  }
+  .media-saved-item .screensaver-saved-main {
+    overflow: hidden;
+  }
+  .screensaver-saved-url {
+    color: var(--window-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.theme-white .screensaver-saved-url {
+    color: #a48b74;
+  }
+  body.theme-white .screensaver-saved-item.is-selected .screensaver-saved-url {
+    color: #a07f66;
+  }
+  .screensaver-delete-button {
+    width: calc(18px * var(--ui-font-scale));
+    height: calc(18px * var(--ui-font-scale));
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgba(255, 188, 188, 0.84);
+    font: inherit;
+    font-size: calc(13px * var(--ui-font-scale));
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+

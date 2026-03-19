@@ -1,0 +1,150 @@
+﻿  /* =========================
+     公共模块：共享结构与组件样式
+     主题模块通过 body 类注入变量
+     ========================= */
+  /* =========================
+     黑色主题模块：theme-black
+     ========================= */
+  body.theme-black {
+    /* 页面与机身 */
+    --page-bg: #050505;
+    --shell-front: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 25%, #2c2c2c 50%, #1a1a1a 75%, #2c2c2c 100%);
+    --shell-back: linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%);
+    --shell-border: #3d3d3d;
+    --shell-border-strong: #444;
+    --logo-border: #555;
+    --logo-bg: radial-gradient(circle, #222 0%, #000 100%);
+    --logo-fill: #333;
+    --outer-display-bg: #050505;
+    --outer-display-border: #222;
+    --outer-display-text: #440000;
+    --hinge-bg: linear-gradient(to bottom, #111 0%, #333 50%, #111 100%);
+    --hinge-border: #222;
+    --hinge-detail: repeating-linear-gradient(90deg, #222, #222 2px, #333 2px, #333 4px);
+    --antenna-bg: linear-gradient(90deg, #222, #444, #222);
+    --antenna-border: #111;
+    --antenna-tip-bg: #440000;
+    --antenna-tip-glow: #ff0000;
+
+    /* 屏幕与状态栏 */
+    --screen-frame-bg: #000;
+    --screen-frame-border: #333;
+    --screen-bg: #121212;
+    --screen-border: #222;
+    --status-bg: linear-gradient(180deg, #2a0000 0%, #0a0000 100%);
+    --status-border: #4a0000;
+
+    /* 强调色与发光 */
+    --accent: #ff3333;
+    --accent-soft: #ff6666;
+    --accent-deep: #880000;
+    --accent-sub: #660000;
+    --signal-glow: #ff0000;
+    --time-shadow: 0 0 5px #ff0000, 0 0 10px #aa0000;
+    --battery-grad: linear-gradient(90deg, #8a0000 0%, #ff1c1c 100%);
+    --menu-color: #cc0000;
+    --menu-hover-shadow: rgba(255, 51, 51, 0.35);
+
+    /* 键盘与方向键 */
+    --button-bg: linear-gradient(145deg, #2a2a2a, #151515);
+    --button-border: #4a0000;
+    --button-text: #880000;
+    --button-sub: #660000;
+    --button-active-bg: #1a1a1a;
+    --button-active-text: #a00000;
+    --dpad-bg: radial-gradient(circle, #333 0%, #111 100%);
+    --dpad-border: #444;
+    --dpad-center: #880000;
+    --dpad-glow: #ff0000;
+
+    /* 应用窗口 */
+    --window-bg: linear-gradient(180deg, #220000 0%, #080000 100%);
+    --window-border: #7a1111;
+    --window-inner: #240000;
+    --window-glow: rgba(255, 0, 0, 0.18);
+    --window-text: #ff5b5b;
+    --window-header-bg: linear-gradient(180deg, #4a0909 0%, #210000 100%);
+    --window-header-border: #8a1a1a;
+    --window-soft: #ff8e8e;
+    --window-box-bg: #140000;
+    --window-box-border: #8a1a1a;
+    --window-subtext: #d45a5a;
+    --window-list-bg: #180000;
+    --window-footer-bg: #120000;
+    --window-footer-border: #641010;
+  }
+  /* =========================
+     白色主题模块：theme-white
+     ========================= */
+  body.theme-white {
+    /* 页面与机身 */
+    --page-bg: #f4efe8;
+    --shell-front: linear-gradient(135deg, #ffffff 0%, #f6f4f1 48%, #ece8e3 100%);
+    --shell-back: linear-gradient(135deg, #ffffff 0%, #f2efeb 52%, #e6e1da 100%);
+    --shell-border: #d5d0c9;
+    --shell-border-strong: #c8c1b8;
+    --logo-border: #ddd6cf;
+    --logo-bg: radial-gradient(circle, #ffffff 0%, #ebe5de 100%);
+    --logo-fill: #c89f7a;
+    --outer-display-bg: #fffaf5;
+    --outer-display-border: #d8d0c7;
+    --outer-display-text: #a47d61;
+    --hinge-bg: linear-gradient(to bottom, #f6f4f1 0%, #ddd7d0 50%, #fbf9f6 100%);
+    --hinge-border: #cfc8bf;
+    --hinge-detail: repeating-linear-gradient(90deg, #ddd7d0, #ddd7d0 2px, #f3efea 2px, #f3efea 4px);
+    --antenna-bg: linear-gradient(90deg, #ddd7d0, #f8f6f3, #cfc8bf);
+    --antenna-border: #c8c1b8;
+    --antenna-tip-bg: #e8d18a;
+    --antenna-tip-glow: rgba(236, 206, 132, 0.72);
+
+    /* 屏幕与状态栏 */
+    --screen-frame-bg: #fbf7f2;
+    --screen-frame-border: #d8d0c7;
+    --screen-bg: #fffaf5;
+    --screen-border: #e2dad0;
+    --status-bg: linear-gradient(180deg, #f8eee4 0%, #efe2d4 100%);
+    --status-border: #e2d1c0;
+
+    /* 强调色与发光 */
+    --accent: #c88a7c;
+    --accent-soft: #dca89a;
+    --accent-deep: #b57d71;
+    --accent-sub: #b68f7d;
+    --signal-glow: rgba(232, 199, 118, 0.76);
+    --time-shadow: 0 0 5px rgba(234, 204, 132, 0.78), 0 0 10px rgba(245, 228, 182, 0.62);
+    --battery-grad: linear-gradient(90deg, #b9efb8 0%, #7fdc8d 100%);
+    --menu-color: #b48773;
+    --menu-hover-shadow: rgba(232, 199, 124, 0.46);
+
+    /* 键盘与方向键 */
+    --button-bg: linear-gradient(145deg, #fffefe, #ece7e0);
+    --button-border: #d7cec4;
+    --button-text: #b98772;
+    --button-sub: #b69a8d;
+    --button-active-bg: #f1ebe4;
+    --button-active-text: #af7d69;
+    --dpad-bg: radial-gradient(circle, #ffffff 0%, #ebe5de 100%);
+    --dpad-border: #d7cec4;
+    --dpad-center: #dfc47d;
+    --dpad-glow: rgba(231, 198, 122, 0.72);
+
+    /* 应用窗口 */
+    --window-bg: linear-gradient(180deg, #fffaf4 0%, #f3e7d2 100%);
+    --window-border: #d5b89a;
+    --window-inner: #fff7ec;
+    --window-glow: rgba(229, 197, 120, 0.24);
+    --window-text: #ab7a66;
+    --window-header-bg: linear-gradient(180deg, #f7e6d6 0%, #ecd7c0 100%);
+    --window-header-border: #d9bca1;
+    --window-soft: #bf8f7e;
+    --window-box-bg: #fff8f1;
+    --window-box-border: #d8b89b;
+    --window-box-focus: #c88a7c;
+    --window-subtext: #9d7b68;
+    --window-list-bg: #f8efe3;
+    --window-footer-bg: #f8eddf;
+    --window-footer-border: #d6bea4;
+    --white-flat-line: #e2cdb7;
+    --white-flat-highlight: rgba(200, 138, 124, 0.14);
+  }
+

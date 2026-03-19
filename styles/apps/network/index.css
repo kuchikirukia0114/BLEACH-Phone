@@ -1,0 +1,322 @@
+﻿  .network-player {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+  }
+  .network-player.is-landscape {
+    gap: 0;
+  }
+  .network-player.is-landscape .network-player-toolbar {
+    display: none;
+  }
+  .network-player-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .network-url-input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--window-box-border);
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--window-text);
+    outline: none;
+    box-sizing: border-box;
+  }
+  .network-url-input::placeholder {
+    color: var(--window-soft);
+    opacity: 0.78;
+  }
+  .network-load-button {
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--window-box-border);
+    background: rgba(255,255,255,0.05);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .network-player-stage {
+    --network-page-scale: 0.62;
+    --network-landscape-scale: 1;
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .network-player-stage.is-webpage {
+    background: #000;
+  }
+  .network-player-stage.is-landscape {
+    border: none;
+    background: #000;
+  }
+  .network-player-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    color: var(--window-soft);
+    line-height: 1.8;
+  }
+  .network-frame-shell {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .network-player-frame {
+    width: calc(100% / var(--network-page-scale));
+    height: calc(100% / var(--network-page-scale));
+    border: none;
+    background: #000;
+    display: block;
+    transform: scale(var(--network-page-scale));
+    transform-origin: top left;
+  }
+  .network-player-stage.is-landscape .network-player-frame {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg) scale(calc(var(--network-page-scale) * var(--network-landscape-scale) * 0.94));
+    transform-origin: center;
+  }
+  .network-player-video {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #000;
+    display: block;
+  }
+  .network-player-stage.is-landscape .network-player-video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: calc(100% - 20px);
+    object-fit: contain;
+    transform: translate(-50%, -50%) rotate(90deg) scale(calc(var(--network-landscape-scale) * 0.94));
+    transform-origin: center;
+  }
+  .network-player-video::-webkit-media-controls-picture-in-picture-button,
+  .network-player-video::-webkit-media-controls-fullscreen-button,
+  .network-player-video::-webkit-media-controls-airplay-button,
+  .network-player-video::-webkit-media-controls-overflow-button {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+  .network-portrait-progress {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .network-portrait-progress.is-visible {
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.14s ease;
+  }
+  #phone:hover .network-portrait-progress.is-visible,
+  #phone:hover .network-landscape-progress.is-visible {
+    opacity: 1;
+    visibility: visible;
+  }
+  .network-portrait-progress-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .network-portrait-time {
+    color: rgba(255,255,255,0.82);
+    font-size: calc(9px * var(--ui-font-scale));
+    line-height: 1;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: auto;
+  }
+  .network-portrait-progress-button {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    pointer-events: auto;
+  }
+  .network-portrait-progress-track {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.18);
+    overflow: hidden;
+    border-radius: 999px;
+  }
+  .network-portrait-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    height: 100%;
+    background: var(--accent);
+    border-radius: inherit;
+  }
+  .network-portrait-progress-thumb {
+    position: absolute;
+    left: 0%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+  }
+  .network-portrait-toggle-button {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    margin-top: 15px;
+    margin-bottom: -13px;
+    align-self: flex-start;
+    border: none;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translate(-10px, 5px);
+  }
+  .network-portrait-toggle-button svg {
+    width: 32px;
+    height: 32px;
+    fill: var(--accent);
+    stroke: none;
+  }
+  .network-landscape-progress {
+    position: absolute;
+    left: 10px;
+    top: 8px;
+    bottom: 20px;
+    width: 30px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 4;
+    pointer-events: none;
+    transform: translate(-10px, -10px);
+  }
+  .network-landscape-progress.is-visible {
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.14s ease;
+  }
+  .network-landscape-time {
+    color: rgba(255,255,255,0.82);
+    font-size: calc(9px * var(--ui-font-scale));
+    line-height: 1;
+    letter-spacing: 0.4px;
+    transform: rotate(90deg);
+    transform-origin: center;
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: auto;
+  }
+  .network-landscape-time.top {
+    margin-top: 6px;
+  }
+  .network-landscape-progress-button {
+    flex: 1;
+    min-height: 0;
+    width: 30px;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    pointer-events: auto;
+  }
+  .network-landscape-progress-track {
+    position: relative;
+    width: 4px;
+    height: 100%;
+    background: rgba(255,255,255,0.18);
+    overflow: hidden;
+    border-radius: 999px;
+  }
+  .network-landscape-progress-fill {
+    position: absolute;
+    inset: 0 0 auto 0;
+    width: 100%;
+    height: 0%;
+    background: var(--accent);
+    border-radius: inherit;
+  }
+  .network-landscape-progress-thumb {
+    position: absolute;
+    left: 50%;
+    top: 0%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+  }
+  .network-landscape-toggle-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translateY(10px);
+  }
+  .network-landscape-toggle-button svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--accent);
+    stroke: none;
+    transform: rotate(90deg);
+    transform-origin: center;
+  }
+

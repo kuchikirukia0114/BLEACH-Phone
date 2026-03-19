@@ -1,0 +1,67 @@
+﻿  @font-face {
+    font-family: 'Cubic11';
+    src: url('https://cdn.jsdelivr.net/gh/ACh-K/Cubic-11@master/fonts/web/Cubic_11.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  .retro-text,
+  .outer-display,
+  #alert-ui,
+  .normal-ui,
+  .time,
+  .screen-saver-clock,
+  .screen-saver-date,
+  .screen-saver-tip,
+  .app-header,
+  .app-body,
+  .settings-editor-field,
+  .settings-editor-input,
+  .screensaver-saved-item,
+  .setting-row,
+  .app-footer {
+    font-family: 'Cubic11', 'DotGothic16', 'Silkscreen', sans-serif;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: grayscale;
+    font-smooth: never;
+    text-rendering: optimizeSpeed;
+  }
+
+  /* =========================
+     公共模块：基础场景与手机结构
+     ========================= */
+  html {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+  }
+  body {
+    --ui-font-scale: 1;
+    --embedded-safe-left: 20px;
+    --embedded-safe-right: 20px;
+    --embedded-safe-top: 72px;
+    --embedded-safe-bottom: 24px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: var(--embedded-safe-top) var(--embedded-safe-right) var(--embedded-safe-bottom) var(--embedded-safe-left);
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    background-color: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+    perspective: 1000px;
+    transition: background-color 0.3s ease;
+  }
+  @media (max-width: 768px) {
+    body {
+      --embedded-safe-left: max(8px, env(safe-area-inset-left, 0px));
+      --embedded-safe-right: max(8px, env(safe-area-inset-right, 0px));
+      --embedded-safe-top: max(32px, env(safe-area-inset-top, 0px));
+      --embedded-safe-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    }
+  }
+

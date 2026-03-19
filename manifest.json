@@ -1,0 +1,9 @@
+{
+  "display_name": "BLEACH-Phone",
+  "loading_order": 10,
+  "js": "index.js",
+  "css": "style.css",
+  "author": "OpenAI",
+  "version": "0.1.0",
+  "auto_update": false
+}
