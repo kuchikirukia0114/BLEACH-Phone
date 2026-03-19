@@ -275,10 +275,6 @@ function getFramePoint(frame, clientX, clientY) {
     };
 }
 
-function getViewportDistance(touch1, touch2) {
-    return Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-}
-
 function getTouchGesture(frame, touches) {
     if (touches.length < 2) {
         return null;
@@ -317,7 +313,6 @@ function bindFrameInteractions(modal) {
             startTop: 0,
             pinching: false,
             pinchDistance: 0,
-            pinchViewportDistance: 0,
             pinchScale: DEFAULT_SCALE,
             pinchLeft: 0,
             pinchTop: 0,
@@ -404,7 +399,6 @@ function bindFrameInteractions(modal) {
             const rect = modal.getBoundingClientRect();
             gestureState.pinching = true;
             gestureState.pinchDistance = Math.max(gesture.distance, 1);
-            gestureState.pinchViewportDistance = getViewportDistance(event.touches[0], event.touches[1]);
             gestureState.pinchScale = getCurrentScale(modal);
             gestureState.pinchLeft = rect.left;
             gestureState.pinchTop = rect.top;
@@ -423,14 +417,7 @@ function bindFrameInteractions(modal) {
                 return;
             }
 
-            const viewportDistance = getViewportDistance(event.touches[0], event.touches[1]);
-            const distanceDelta = Math.abs(viewportDistance - gestureState.pinchViewportDistance);
-            if (distanceDelta < 2) {
-                event.preventDefault();
-                return;
-            }
-
-            const nextScale = gestureState.pinchScale * (viewportDistance / Math.max(gestureState.pinchViewportDistance, 1));
+            const nextScale = gestureState.pinchScale * (gesture.distance / Math.max(gestureState.pinchDistance, 1));
             const appliedScale = setModalScale(modal, nextScale, { persist: false, clampPosition: false });
             const ratio = appliedScale / gestureState.pinchScale;
             const nextLeft = gesture.centerX - (gestureState.pinchCenterX - gestureState.pinchLeft) * ratio;
@@ -446,7 +433,6 @@ function bindFrameInteractions(modal) {
             }
 
             gestureState.pinching = false;
-            gestureState.pinchViewportDistance = 0;
             const rect = modal.getBoundingClientRect();
             const settings = getSettings();
             settings.left = rect.left;

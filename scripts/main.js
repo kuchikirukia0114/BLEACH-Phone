@@ -2847,13 +2847,9 @@ async function bootstrapAiPersistentData() {
   }
 }
 
-const isEmbeddedHostFrame = window.self !== window.top;
-let hasLockedEmbeddedPhoneFit = false;
-
-function fitPhoneToViewport({ force = false } = {}) {
+function fitPhoneToViewport() {
   const phoneEl = document.getElementById('phone');
   if (!phoneEl) return;
-  if (isEmbeddedHostFrame && hasLockedEmbeddedPhoneFit && !force) return;
 
   document.documentElement.style.setProperty('--embedded-phone-scale', '1');
 
@@ -2868,18 +2864,12 @@ function fitPhoneToViewport({ force = false } = {}) {
 
   document.documentElement.style.setProperty('--embedded-phone-scale', String(scale));
   window.scrollTo(0, 0);
-
-  if (isEmbeddedHostFrame) {
-    hasLockedEmbeddedPhoneFit = true;
-  }
 }
 
-if (!isEmbeddedHostFrame) {
-  window.addEventListener('resize', fitPhoneToViewport);
-}
+window.addEventListener('resize', fitPhoneToViewport);
 updateMenuSelection();
 setInterval(updateTime, 1000);
 updateTime();
-fitPhoneToViewport({ force: true });
+fitPhoneToViewport();
 bootstrapAiPersistentData();
 
