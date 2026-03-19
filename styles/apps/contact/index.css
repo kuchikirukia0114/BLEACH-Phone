@@ -196,6 +196,10 @@
   .contact-chat-row.is-loading .contact-chat-bubble {
     color: rgba(220, 255, 255, 0.7);
   }
+  body.theme-white .contact-chat-row.is-loading .contact-chat-bubble,
+  body.theme-white .contact-chat-row.is-loading .contact-chat-text {
+    color: #443a34;
+  }
   body.theme-white .contact-chat-bubble {
     border-color: rgba(191, 159, 135, 0.7);
     background: rgba(255, 255, 255, 0.92);

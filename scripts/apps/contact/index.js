@@ -639,7 +639,7 @@ function renderSmsContent() {
     const loadingHtml = aiChatRequestStatus === 'loading'
       ? `
         <div class="contact-chat-row is-assistant is-loading">
-          <div class="contact-chat-bubble"><span class="contact-chat-text">思考中…</span></div>
+          <div class="contact-chat-bubble"><span class="contact-chat-text">…</span></div>
         </div>
       `
       : '';
