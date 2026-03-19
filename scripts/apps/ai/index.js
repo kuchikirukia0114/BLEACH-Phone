@@ -82,24 +82,31 @@ function buildBleachPhoneChatsVariableValue() {
   const contacts = aiContacts.map((contact, index) => {
     const messages = Array.isArray(aiChatHistoryMap?.[contact.id]) ? aiChatHistoryMap[contact.id] : [];
     if (!messages.length) return null;
+    const chat = [];
+    const pendingUserMessages = [];
+    messages.forEach((message) => {
+      const content = String(message?.content || '').trim();
+      if (!content) return;
+      if (message?.role === 'user') {
+        if (message?.pending) {
+          pendingUserMessages.push(content);
+          return;
+        }
+        chat.push({ user: content });
+        return;
+      }
+      chat.push({ contact: content });
+    });
+    if (!chat.length && !pendingUserMessages.length) return null;
     return {
       contact_id: getAiContactExternalId(contact) || index + 1,
-      internal_contact_id: contact.id,
-      contact_index: index,
       contact_name: contact.name || `联系人 ${index + 1}`,
-      messages: messages
-        .map((message, messageIndex) => ({
-          id: typeof message?.id === 'string' && message.id.trim() ? message.id.trim() : `${contact.id}_${Number.isFinite(message?.time) ? message.time : Date.now()}_${messageIndex}`,
-          role: message?.role === 'user' ? 'user' : 'contact',
-          content: String(message?.content || '').trim(),
-          time: Number.isFinite(message?.time) ? message.time : Date.now(),
-          pending: Boolean(message?.pending && message?.role === 'user')
-        }))
-        .filter((message) => message.content)
+      chat,
+      pending_user_messages: pendingUserMessages
     };
   }).filter(Boolean);
   return JSON.stringify({
-    version: 1,
+    version: 2,
     updated_at: Date.now(),
     contacts
   }, null, 2);
@@ -116,47 +123,40 @@ function normalizeBleachPhoneChatsVariableValue(rawValue) {
   }
   const contacts = Array.isArray(parsedValue?.contacts) ? parsedValue.contacts : [];
   return {
-    version: Number.isFinite(parsedValue?.version) ? parsedValue.version : 1,
+    version: Number.isFinite(parsedValue?.version) ? parsedValue.version : 2,
     updated_at: Number.isFinite(parsedValue?.updated_at) ? parsedValue.updated_at : Date.now(),
     contacts: contacts.map((entry, index) => ({
       contact_id: Number.isFinite(Number(entry?.contact_id)) ? Math.max(1, Number(entry.contact_id)) : 0,
-      internal_contact_id: typeof entry?.internal_contact_id === 'string' && entry.internal_contact_id.trim()
-        ? entry.internal_contact_id.trim()
-        : (typeof entry?.contact_id === 'string' && !/^\d+$/.test(entry.contact_id.trim()) ? entry.contact_id.trim() : ''),
-      contact_index: Number.isFinite(entry?.contact_index) ? entry.contact_index : index,
       contact_name: typeof entry?.contact_name === 'string' ? entry.contact_name.trim() : '',
-      messages: Array.isArray(entry?.messages) ? entry.messages : []
-    })).filter((entry) => entry.contact_id || entry.internal_contact_id || entry.contact_name || entry.messages.length)
+      contact_index: Number.isFinite(entry?.contact_index) ? entry.contact_index : index,
+      chat: Array.isArray(entry?.chat) ? entry.chat : [],
+      pending_user_messages: Array.isArray(entry?.pending_user_messages) ? entry.pending_user_messages : []
+    })).filter((entry) => entry.contact_id || entry.contact_name || entry.chat.length || entry.pending_user_messages.length)
   };
 }
 
 function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist = true } = {}) {
   const normalizedValue = normalizeBleachPhoneChatsVariableValue(rawValue);
   const nextContacts = [...aiContacts];
-  const contactsById = new Map(nextContacts.map((contact) => [contact.id, contact]));
   const contactsByExternalId = new Map(nextContacts.map((contact) => [getAiContactExternalId(contact), contact]));
   const contactsByName = new Map(nextContacts.map((contact) => [String(contact?.name || '').trim(), contact]));
   const nextHistoryMap = {};
 
   normalizedValue.contacts.forEach((entry, index) => {
     const contactName = entry.contact_name || `联系人 ${index + 1}`;
-    let contact = entry.internal_contact_id ? contactsById.get(entry.internal_contact_id) || null : null;
-    if (!contact && entry.contact_id) {
-      contact = contactsByExternalId.get(entry.contact_id) || null;
-    }
+    let contact = entry.contact_id ? contactsByExternalId.get(entry.contact_id) || null : null;
     if (!contact && contactName) {
       contact = contactsByName.get(contactName) || null;
     }
     if (!contact) {
       contact = {
-        id: entry.internal_contact_id || createAiContactId(index),
+        id: createAiContactId(index),
         externalId: entry.contact_id || getNextAiContactExternalId(nextContacts),
         name: contactName,
         prompt: '',
         createdAt: Date.now()
       };
       nextContacts.push(contact);
-      contactsById.set(contact.id, contact);
       contactsByExternalId.set(getAiContactExternalId(contact), contact);
       contactsByName.set(contact.name, contact);
     } else {
@@ -168,22 +168,53 @@ function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist =
           name: contactName || nextContacts[targetIndex].name
         };
         contact = nextContacts[targetIndex];
-        contactsById.set(contact.id, contact);
         contactsByExternalId.set(getAiContactExternalId(contact), contact);
         contactsByName.set(contact.name, contact);
       }
     }
 
-    nextHistoryMap[contact.id] = entry.messages
-      .map((message, messageIndex) => ({
-        id: typeof message?.id === 'string' && message.id.trim() ? message.id.trim() : `${contact.id}_${Number.isFinite(message?.time) ? message.time : Date.now()}_${messageIndex}`,
-        role: message?.role === 'user' ? 'user' : 'assistant',
-        content: typeof message?.content === 'string' ? message.content : '',
-        time: Number.isFinite(message?.time) ? message.time : Date.now() + messageIndex,
-        pending: Boolean(message?.pending && message?.role === 'user')
-      }))
-      .filter((message) => message.content.trim())
-      .slice(-80);
+    const chatMessages = entry.chat
+      .map((message, messageIndex) => {
+        if (!message || typeof message !== 'object') return null;
+        const userContent = typeof message.user === 'string' ? message.user.trim() : '';
+        if (userContent) {
+          return {
+            id: `${contact.id}_chat_user_${messageIndex}_${Math.random().toString(36).slice(2, 8)}`,
+            role: 'user',
+            content: userContent,
+            time: Date.now() + messageIndex,
+            pending: false
+          };
+        }
+        const contactContent = typeof message.contact === 'string' ? message.contact.trim() : '';
+        if (contactContent) {
+          return {
+            id: `${contact.id}_chat_contact_${messageIndex}_${Math.random().toString(36).slice(2, 8)}`,
+            role: 'assistant',
+            content: contactContent,
+            time: Date.now() + messageIndex,
+            pending: false
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    const pendingMessages = entry.pending_user_messages
+      .map((content, pendingIndex) => {
+        const normalizedContent = typeof content === 'string' ? content.trim() : '';
+        if (!normalizedContent) return null;
+        return {
+          id: `${contact.id}_pending_user_${pendingIndex}_${Math.random().toString(36).slice(2, 8)}`,
+          role: 'user',
+          content: normalizedContent,
+          time: Date.now() + chatMessages.length + pendingIndex,
+          pending: true
+        };
+      })
+      .filter(Boolean);
+
+    nextHistoryMap[contact.id] = [...chatMessages, ...pendingMessages].slice(-80);
   });
 
   aiContacts = normalizeAiContacts(nextContacts);
