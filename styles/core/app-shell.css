@@ -26,7 +26,7 @@
     align-items: center;
     color: var(--menu-color);
     font-size: calc(10px * var(--ui-font-scale));
-    font-family: "Microsoft YaHei", sans-serif;
+    font-family: inherit;
     cursor: pointer;
     transition: color 0.2s;
     background: transparent;
