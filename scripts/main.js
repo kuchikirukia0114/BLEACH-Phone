@@ -21,18 +21,23 @@ function updateRealtimeStatusBar(timeText) {
       realtimeEl.dataset.mode = 'time';
       realtimeEl.dataset.label = '';
       realtimeEl.dataset.waiting = '0';
+      realtimeEl.dataset.summarizing = '0';
+      realtimeEl.dataset.actionable = '0';
+      realtimeEl.title = '';
     }
     return;
   }
 
   const contactName = String(getCurrentAiContact?.()?.name || '短信').trim() || '短信';
   const isWaiting = aiChatRequestStatus === 'loading';
+  const isSummarizing = smsSummaryRequestStatus === 'loading';
   const isMarquee = shouldStatusBarContactNameMarquee(contactName);
-  const nextClassName = `time is-contact-name${isMarquee ? ' is-marquee' : ''}${isWaiting ? ' is-waiting' : ''}`;
+  const nextClassName = `time is-contact-name is-actionable${isMarquee ? ' is-marquee' : ''}${isWaiting ? ' is-waiting' : ''}${isSummarizing ? ' is-summarizing' : ''}`;
   if (
     realtimeEl.dataset.mode === 'contact-name'
     && realtimeEl.dataset.label === contactName
     && realtimeEl.dataset.waiting === (isWaiting ? '1' : '0')
+    && realtimeEl.dataset.summarizing === (isSummarizing ? '1' : '0')
     && realtimeEl.className === nextClassName
   ) {
     return;
@@ -42,16 +47,100 @@ function updateRealtimeStatusBar(timeText) {
   realtimeEl.dataset.mode = 'contact-name';
   realtimeEl.dataset.label = contactName;
   realtimeEl.dataset.waiting = isWaiting ? '1' : '0';
+  realtimeEl.dataset.summarizing = isSummarizing ? '1' : '0';
+  realtimeEl.dataset.actionable = '1';
+  realtimeEl.title = '点击总结短信聊天';
+}
+
+function formatDateTimeLabel(value = Date.now()) {
+  const parsedDate = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+  const year = safeDate.getFullYear();
+  const month = String(safeDate.getMonth() + 1).padStart(2, '0');
+  const day = String(safeDate.getDate()).padStart(2, '0');
+  const hours = String(safeDate.getHours()).padStart(2, '0');
+  const minutes = String(safeDate.getMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hours}:${minutes}`;
+}
+
+function getPhoneDisplayTimeValue() {
+  return phoneDisplayTime instanceof Date && !Number.isNaN(phoneDisplayTime.getTime())
+    ? new Date(phoneDisplayTime.getTime())
+    : new Date();
+}
+
+function getPhoneDisplayTimestamp() {
+  return getPhoneDisplayTimeValue().getTime();
+}
+
+function getPhoneDisplayTimeLabel() {
+  return formatDateTimeLabel(getPhoneDisplayTimeValue());
+}
+
+function getPhoneDisplayMessageTimeMeta(value = getPhoneDisplayTimeValue()) {
+  const now = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  const safeNow = Number.isNaN(now.getTime()) ? getPhoneDisplayTimeValue() : now;
+  return {
+    time: safeNow.getTime(),
+    timeLabel: formatDateTimeLabel(safeNow)
+  };
+}
+
+function setPhoneDisplayTime(value, { render = true } = {}) {
+  if (value == null || value === '') {
+    phoneDisplayTime = null;
+  } else if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    phoneDisplayTime = new Date(value.getTime());
+  } else {
+    const nextDate = new Date(value);
+    if (Number.isNaN(nextDate.getTime())) {
+      return false;
+    }
+    phoneDisplayTime = nextDate;
+  }
+
+  if (render) {
+    updateTime();
+  }
+  return true;
+}
+
+function resetPhoneDisplayTime(options) {
+  return setPhoneDisplayTime(null, options);
+}
+
+function formatPhoneDisplayTime(now = getPhoneDisplayTimeValue()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return {
+    now,
+    year,
+    month,
+    day,
+    hours,
+    minutes,
+    timeStr: `${hours}:${minutes}`,
+    dateStr: `${year}.${month}.${day}`
+  };
+}
+
+function getPhoneDisplayTimeContext() {
+  const formatted = formatPhoneDisplayTime();
+  return {
+    ...formatted,
+    isCustom: phoneDisplayTime instanceof Date && !Number.isNaN(phoneDisplayTime.getTime())
+  };
+}
+
+function getPhoneDisplayDateTimeLabel() {
+  return getPhoneDisplayTimeLabel();
 }
 
 function updateTime() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const timeStr = `${h}:${m}`;
-  const dateStr = `${now.getFullYear()}.${month}.${day}`;
+  const { timeStr, dateStr } = formatPhoneDisplayTime();
   updateRealtimeStatusBar(timeStr);
   document.getElementById('screen-saver-time').textContent = timeStr;
   document.getElementById('screen-saver-date').textContent = dateStr;
@@ -60,6 +149,14 @@ function updateTime() {
     document.getElementById('outer-time').textContent = isScreenSaverActive
       ? getScreenSaverEntryLabel(currentEntry)
       : timeStr;
+  }
+}
+
+function handleRealtimeStatusBarClick(event) {
+  event?.stopPropagation?.();
+  if (currentAppKey !== 'sms' || contactView !== 'chat') return;
+  if (typeof triggerSmsChatSummaryFromStatusBar === 'function') {
+    triggerSmsChatSummaryFromStatusBar();
   }
 }
 
@@ -772,7 +869,9 @@ function renderAppWindow(appKey) {
     } else if (contactView === 'smsApiBinding') {
       appTitle = 'API';
     } else if (contactView === 'smsPreset') {
-      appTitle = '预设';
+      appTitle = '聊天预设';
+    } else if (contactView === 'smsSummaryPreset') {
+      appTitle = '总结预设';
     } else if (contactView === 'smsChatHistory') {
       appTitle = '聊天记录';
     } else if (contactView === 'chat') {
@@ -1003,6 +1102,21 @@ function renderAppWindow(appKey) {
         selectedItem?.scrollIntoView({ block: 'nearest' });
         presetList.addEventListener('scroll', () => {
           smsPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+
+    if (contactView === 'smsSummaryPreset') {
+      setAppSoftkeys('', '选择', '返回');
+      requestAnimationFrame(() => {
+        const presetList = document.getElementById('sms-summary-preset-list');
+        const selectedItem = presetList?.querySelector('.sms-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = smsSummaryPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          smsSummaryPresetListScrollTop = presetList.scrollTop;
         }, { passive: true });
       });
       return;
@@ -1315,8 +1429,11 @@ function openApp(appKey) {
     selectedSmsSettingsIndex = 0;
     smsSettingsListScrollTop = 0;
     currentSmsPresetId = normalizeAiSettings(aiSettings).selectedSmsPresetId || '';
+    currentSmsSummaryPresetId = normalizeAiSettings(aiSettings).selectedSmsSummaryPresetId || currentSmsPresetId || '';
     selectedSmsPresetIndex = -1;
+    selectedSmsSummaryPresetIndex = -1;
     smsPresetListScrollTop = 0;
+    smsSummaryPresetListScrollTop = 0;
     selectedSmsApiProfileIndex = -1;
     smsApiProfileListScrollTop = 0;
     smsApiBindingReturnView = 'list';
@@ -1402,8 +1519,11 @@ function closeApp() {
   selectedSmsSettingsIndex = 0;
   smsSettingsListScrollTop = 0;
   currentSmsPresetId = '';
+  currentSmsSummaryPresetId = '';
   selectedSmsPresetIndex = -1;
+  selectedSmsSummaryPresetIndex = -1;
   smsPresetListScrollTop = 0;
+  smsSummaryPresetListScrollTop = 0;
   selectedSmsApiProfileIndex = -1;
   smsApiProfileListScrollTop = 0;
   smsApiBindingReturnView = 'list';
@@ -1613,14 +1733,14 @@ function handleSideButtonPress(event) {
         return;
       }
       if (contactView === 'chat') {
-        if (selectedAiChatMessageId) {
+        if (selectedAiChatMessageIds.length) {
           deleteSelectedAiChatMessage();
           return;
         }
         sendAiChatMessage();
         return;
       }
-      if (contactView === 'smsSettings' || contactView === 'smsApiBinding' || contactView === 'smsPreset' || contactView === 'smsChatHistory') {
+      if (contactView === 'smsSettings' || contactView === 'smsApiBinding' || contactView === 'smsPreset' || contactView === 'smsSummaryPreset' || contactView === 'smsChatHistory') {
         return;
       }
     }
@@ -1804,7 +1924,7 @@ function handleSideButtonPress(event) {
         closeSmsApiBindingList();
         return;
       }
-      if (contactView === 'smsPreset' || contactView === 'smsChatHistory') {
+      if (contactView === 'smsPreset' || contactView === 'smsSummaryPreset' || contactView === 'smsChatHistory') {
         closeSmsSettingsPlaceholder();
         return;
       }
@@ -1954,6 +2074,8 @@ if (speakerEl) {
     }
   });
 }
+
+document.getElementById('realtime')?.addEventListener('click', handleRealtimeStatusBarClick);
 
 const dpad = document.getElementById('dpad');
 dpad.addEventListener('mousedown', pressDpad);
@@ -2218,6 +2340,14 @@ document.getElementById('app-window').addEventListener('click', (event) => {
   if (smsPresetItem && currentAppKey === 'sms' && contactView === 'smsPreset') {
     selectedSmsPresetIndex = Number(smsPresetItem.dataset.smsPresetIndex);
     bindSmsPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const smsSummaryPresetItem = event.target.closest('[data-sms-summary-preset-index]');
+  if (smsSummaryPresetItem && currentAppKey === 'sms' && contactView === 'smsSummaryPreset') {
+    selectedSmsSummaryPresetIndex = Number(smsSummaryPresetItem.dataset.smsSummaryPresetIndex);
+    bindSmsSummaryPresetSelection();
     event.stopPropagation();
     return;
   }
@@ -2582,7 +2712,7 @@ document.addEventListener('keydown', (event) => {
         confirmCurrentSelection();
         return;
       }
-      if (contactView === 'chat' && selectedAiChatMessageId) {
+      if (contactView === 'chat' && selectedAiChatMessageIds.length) {
         deleteSelectedAiChatMessage();
         return;
       }
@@ -2712,7 +2842,7 @@ document.addEventListener('keydown', (event) => {
         closeSmsApiBindingList();
         return;
       }
-      if (contactView === 'smsPreset' || contactView === 'smsChatHistory') {
+      if (contactView === 'smsPreset' || contactView === 'smsSummaryPreset' || contactView === 'smsChatHistory') {
         closeSmsSettingsPlaceholder();
         return;
       }
@@ -2822,6 +2952,7 @@ applyFontSize(currentFontSizeKey);
 
 async function bootstrapAiPersistentData() {
   bindBleachPhoneChatsVariableEvents();
+  bindBleachPhoneChatGenerationEvents();
   try {
     const hydratedState = await hydrateAiPersistentData();
     aiSettings = hydratedState.aiSettings;
@@ -2832,6 +2963,7 @@ async function bootstrapAiPersistentData() {
     if (!loadedFromChatVariable) {
       syncBleachPhoneChatsVariable();
     }
+    await loadBleachPhoneSummarizedChatsVariableToRuntime({ persistContacts: true });
     selectedAiContactIndex = aiContacts.length ? Math.min(Math.max(selectedAiContactIndex, 0), aiContacts.length - 1) : -1;
     currentAiContactIndex = currentAiContactIndex >= 0 && aiContacts.length
       ? Math.min(currentAiContactIndex, aiContacts.length - 1)

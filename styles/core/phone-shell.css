@@ -65,7 +65,7 @@
     background: var(--shell-front);
     border: 3px solid var(--shell-border);
     border-bottom: none;
-    border-radius: 15px 15px 0 0;
+    border-radius: 15px 15px 16px 16px;
     padding: 15px;
     z-index: 2;
   }
@@ -185,19 +185,36 @@
 
   /* 转轴 */
   .hinge {
-    width: 250px;
+    width: 232px;
     height: 18px;
     background: var(--hinge-bg);
-    border-radius: 9px;
+    border-radius: 12px;
     border: 2px solid var(--hinge-border);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    box-shadow:
+      0 5px 15px rgba(0,0,0,0.5),
+      0 8px 14px rgba(0,0,0,0.34),
+      0 12px 18px rgba(0,0,0,0.2);
     z-index: 3;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 11px;
     box-sizing: border-box;
-    margin: -2px 0; /* 紧贴上下部分 */
+    margin: -3px 0; /* 紧贴上下部分 */
+  }
+  body.theme-black .hinge {
+    border: none;
+    box-shadow:
+      inset 0 2px 3px rgba(255,255,255,0.02),
+      inset 0 -3px 5px rgba(0,0,0,0.46),
+      0 3px 8px rgba(0,0,0,0.18),
+      0 7px 14px rgba(0,0,0,0.12);
+  }
+  body.theme-white .hinge {
+    border: none;
+    box-shadow:
+      0 2px 6px rgba(150, 134, 119, 0.12),
+      0 4px 10px rgba(120, 106, 92, 0.08);
   }
   .hinge-detail {
     width: 40px;
@@ -211,13 +228,23 @@
     background: var(--shell-back);
     border: 3px solid var(--shell-border);
     border-top: none;
-    border-radius: 0 0 20px 20px;
+    border-radius: 16px 16px 20px 20px;
     padding: 16px 15px 14px;
     position: relative;
     box-sizing: border-box;
-    box-shadow: inset 0 -5px 15px rgba(0,0,0,0.5);
-    margin-top: -5px;
+    box-shadow:
+      inset 0 -5px 15px rgba(0,0,0,0.5),
+      inset 0 16px 26px rgba(255,255,255,0.03),
+      0 10px 22px rgba(0,0,0,0.28);
+    margin-top: -6px;
     transform: none;
     transform-origin: top;
+  }
+  body.theme-black .lower-body {
+    box-shadow:
+      inset 0 -5px 50px rgba(0,0,0,0.9),
+      inset 0 16px 26px rgba(0,0,0,0.9),
+      inset 1px 1px 2px rgba(255,255,255,0.8),
+      inset -1px -1px 2px rgba(0,0,0,0.22);
   }
 

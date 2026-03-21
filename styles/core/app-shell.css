@@ -38,11 +38,15 @@
   .grid-item.is-selected {
     color: var(--accent-soft);
   }
+  body.theme-black .grid-item:hover,
+  body.theme-black .grid-item.is-selected {
+    color: #cc0000;
+  }
   .grid-item .icon {
     width: 22px;
     height: 22px;
     margin-bottom: 5px;
-    filter: drop-shadow(0 0 2px var(--signal-glow));
+    filter: none;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -64,6 +68,11 @@
   .grid-item.is-selected .icon svg {
     stroke: var(--accent-soft);
     filter: drop-shadow(0 0 3px var(--signal-glow));
+  }
+  body.theme-black .grid-item:hover .icon svg,
+  body.theme-black .grid-item.is-selected .icon svg {
+    stroke: #cc0000;
+    filter: drop-shadow(0 0 2px var(--signal-glow));
   }
   .app-window {
     position: absolute;

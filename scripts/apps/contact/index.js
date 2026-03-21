@@ -1,12 +1,19 @@
 ﻿// Contact 应用逻辑（从 main.js 渐进拆出）
 
-function createAiChatMessage(role, content, { pending = false } = {}) {
-  const now = Date.now();
+function createAiChatMessage(role, content, { pending = false, time = null, timeLabel = '' } = {}) {
+  const phoneTimeMeta = Number.isFinite(time)
+    ? { time, timeLabel: String(timeLabel || '').trim() }
+    : (typeof getPhoneDisplayMessageTimeMeta === 'function' ? getPhoneDisplayMessageTimeMeta() : null);
+  const normalizedTime = Number.isFinite(phoneTimeMeta?.time) ? phoneTimeMeta.time : Date.now();
+  const normalizedTimeLabel = String(timeLabel || '').trim()
+    || String(phoneTimeMeta?.timeLabel || '').trim()
+    || (typeof formatDateTimeLabel === 'function' ? formatDateTimeLabel(normalizedTime) : '');
   return {
-    id: `ai_msg_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `ai_msg_${normalizedTime}_${Math.random().toString(36).slice(2, 8)}`,
     role: role === 'user' ? 'user' : 'assistant',
     content: String(content || '').trim(),
-    time: now,
+    time: normalizedTime,
+    timeLabel: normalizedTimeLabel,
     pending: role === 'user' ? Boolean(pending) : false
   };
 }
@@ -25,49 +32,109 @@ function getCurrentAiContact() {
   return aiContacts[currentAiContactIndex];
 }
 
-function getAiContactHistory(contactId) {
+function getAiActiveContactHistory(contactId) {
   return Array.isArray(aiChatHistoryMap[contactId]) ? aiChatHistoryMap[contactId] : [];
 }
 
+function getAiSummarizedContactHistory(contactId) {
+  return Array.isArray(aiSummarizedChatHistoryMap?.[contactId]) ? aiSummarizedChatHistoryMap[contactId] : [];
+}
+
+function getAiContactHistory(contactId, { includeSummarized = true } = {}) {
+  const activeHistory = getAiActiveContactHistory(contactId);
+  if (!includeSummarized) {
+    return activeHistory;
+  }
+  const summarizedHistory = getAiSummarizedContactHistory(contactId);
+  if (!summarizedHistory.length) {
+    return activeHistory;
+  }
+  if (!activeHistory.length) {
+    return summarizedHistory;
+  }
+  const mergedMessages = [...summarizedHistory, ...activeHistory];
+  const messageMap = new Map();
+  mergedMessages.forEach((message, index) => {
+    const messageKey = String(message?.id || '').trim() || `${contactId}_${Number.isFinite(message?.time) ? message.time : Date.now()}_${index}`;
+    messageMap.set(messageKey, message);
+  });
+  return Array.from(messageMap.values()).sort((leftMessage, rightMessage) => {
+    const leftTime = Number.isFinite(leftMessage?.time) ? leftMessage.time : 0;
+    const rightTime = Number.isFinite(rightMessage?.time) ? rightMessage.time : 0;
+    return leftTime - rightTime;
+  });
+}
+
 function appendAiChatMessage(contactId, message) {
+  const normalizedTime = Number.isFinite(message?.time) ? message.time : Date.now();
   const nextMessage = {
     ...message,
     content: String(message?.content || '').trim(),
+    time: normalizedTime,
+    timeLabel: String(message?.timeLabel || '').trim() || (typeof formatDateTimeLabel === 'function' ? formatDateTimeLabel(normalizedTime) : ''),
     pending: message?.role === 'user' ? Boolean(message?.pending) : false
   };
   if (!nextMessage.content) return null;
-  aiChatHistoryMap[contactId] = [...getAiContactHistory(contactId), nextMessage].slice(-80);
+  aiChatHistoryMap[contactId] = [...getAiActiveContactHistory(contactId), nextMessage].slice(-80);
   saveAiChatHistoryMap();
   syncBleachPhoneChatsVariable();
   return nextMessage;
 }
 
-function removeAiChatMessage(contactId, messageId) {
-  aiChatHistoryMap[contactId] = getAiContactHistory(contactId).filter((message) => message.id !== messageId);
-  if (selectedAiChatMessageId === messageId) {
-    selectedAiChatMessageId = '';
+function removeAiChatMessages(contactId, messageIds = []) {
+  const normalizedMessageIds = Array.from(new Set((Array.isArray(messageIds) ? messageIds : [messageIds]).map((messageId) => String(messageId || '').trim()).filter(Boolean)));
+  if (!contactId || !normalizedMessageIds.length) {
+    return { removedActive: 0, removedSummarized: 0 };
   }
-  saveAiChatHistoryMap();
-  syncBleachPhoneChatsVariable();
+  const messageIdSet = new Set(normalizedMessageIds);
+  const previousActiveHistory = getAiActiveContactHistory(contactId);
+  const nextActiveHistory = previousActiveHistory.filter((message) => !messageIdSet.has(String(message?.id || '').trim()));
+  const previousSummarizedHistory = getAiSummarizedContactHistory(contactId);
+  const nextSummarizedHistory = previousSummarizedHistory.filter((message) => !messageIdSet.has(String(message?.id || '').trim()));
+  const removedActive = previousActiveHistory.length - nextActiveHistory.length;
+  const removedSummarized = previousSummarizedHistory.length - nextSummarizedHistory.length;
+  if (removedActive > 0) {
+    aiChatHistoryMap[contactId] = nextActiveHistory;
+    saveAiChatHistoryMap();
+    syncBleachPhoneChatsVariable();
+  }
+  if (removedSummarized > 0) {
+    aiSummarizedChatHistoryMap[contactId] = nextSummarizedHistory;
+    const currentChatId = typeof getCurrentSTChatId === 'function' ? getCurrentSTChatId() : '';
+    if (currentChatId && typeof syncBleachPhoneSummarizedChatsRuntimeVariable === 'function') {
+      syncBleachPhoneSummarizedChatsRuntimeVariable({ expectedChatId: currentChatId });
+    }
+  }
+  selectedAiChatMessageIds = selectedAiChatMessageIds.filter((messageId) => !messageIdSet.has(String(messageId || '').trim()));
+  return { removedActive, removedSummarized };
 }
 
 function toggleAiChatMessageSelection(messageId = '') {
   const normalizedMessageId = String(messageId || '').trim();
-  selectedAiChatMessageId = selectedAiChatMessageId === normalizedMessageId ? '' : normalizedMessageId;
+  if (!normalizedMessageId) return selectedAiChatMessageIds;
+  const selectedMessageIdSet = new Set(selectedAiChatMessageIds);
+  if (selectedMessageIdSet.has(normalizedMessageId)) {
+    selectedMessageIdSet.delete(normalizedMessageId);
+  } else {
+    selectedMessageIdSet.add(normalizedMessageId);
+  }
+  selectedAiChatMessageIds = Array.from(selectedMessageIdSet);
   renderActiveAiAppWindow();
-  return selectedAiChatMessageId;
+  return selectedAiChatMessageIds;
 }
 
 function deleteSelectedAiChatMessage() {
   const contact = getCurrentAiContact();
-  const messageId = String(selectedAiChatMessageId || '').trim();
-  if (!contact || !messageId) return false;
-  if (!getAiContactHistory(contact.id).some((message) => message.id === messageId)) {
-    selectedAiChatMessageId = '';
+  const messageIds = selectedAiChatMessageIds.map((messageId) => String(messageId || '').trim()).filter(Boolean);
+  if (!contact || !messageIds.length) return false;
+  const availableMessageIdSet = new Set(getAiContactHistory(contact.id).map((message) => String(message?.id || '').trim()).filter(Boolean));
+  const validMessageIds = messageIds.filter((messageId) => availableMessageIdSet.has(messageId));
+  if (!validMessageIds.length) {
+    selectedAiChatMessageIds = [];
     renderActiveAiAppWindow();
     return false;
   }
-  removeAiChatMessage(contact.id, messageId);
+  removeAiChatMessages(contact.id, validMessageIds);
   aiChatErrorMessage = '';
   renderActiveAiAppWindow();
   return true;
@@ -132,10 +199,12 @@ function renderActiveAiAppWindow() {
   }
 }
 
+// ===== 短信：设置项 / API 绑定 / 预设选择 =====
 function getSmsSettingsEntries() {
   return [
     { key: 'api', label: 'API' },
-    { key: 'preset', label: '预设' },
+    { key: 'chatPreset', label: '聊天预设' },
+    { key: 'summaryPreset', label: '总结预设' },
     { key: 'chatHistory', label: '聊天记录' }
   ];
 }
@@ -165,6 +234,21 @@ function syncSmsPresetSelection() {
     : -1;
 }
 
+function syncSmsSummaryPresetSelection() {
+  const presets = getSmsPresetEntries();
+  currentSmsSummaryPresetId = resolveSelectedAiPresetId(normalizeAiSettings(aiSettings).selectedSmsSummaryPresetId || currentSmsSummaryPresetId || currentSmsPresetId, presets);
+  const currentIndex = presets.findIndex((preset) => preset.id === currentSmsSummaryPresetId);
+  selectedSmsSummaryPresetIndex = presets.length
+    ? Math.min(
+      Math.max(
+        selectedSmsSummaryPresetIndex >= 0 ? selectedSmsSummaryPresetIndex : (currentIndex >= 0 ? currentIndex : 0),
+        0
+      ),
+      presets.length - 1
+    )
+    : -1;
+}
+
 function setSmsSelectedPreset(presetId) {
   const settings = normalizeAiSettings(aiSettings);
   const nextPresetId = resolveSelectedAiPresetId(presetId, settings.presetEntries);
@@ -175,6 +259,18 @@ function setSmsSelectedPreset(presetId) {
   currentSmsPresetId = aiSettings.selectedSmsPresetId;
   persistAiSettings(aiSettings);
   return currentSmsPresetId;
+}
+
+function setSmsSelectedSummaryPreset(presetId) {
+  const settings = normalizeAiSettings(aiSettings);
+  const nextPresetId = resolveSelectedAiPresetId(presetId, settings.presetEntries);
+  aiSettings = normalizeAiSettings({
+    ...settings,
+    selectedSmsSummaryPresetId: nextPresetId
+  });
+  currentSmsSummaryPresetId = aiSettings.selectedSmsSummaryPresetId;
+  persistAiSettings(aiSettings);
+  return currentSmsSummaryPresetId;
 }
 
 function syncSmsApiBindingSelection() {
@@ -192,6 +288,7 @@ function syncSmsApiBindingSelection() {
     : -1;
 }
 
+// ===== 短信：设置页导航与绑定动作 =====
 function openSmsSettings() {
   smsApiBindingReturnView = contactView === 'chat' ? 'chat' : 'list';
   contactView = 'smsSettings';
@@ -216,9 +313,14 @@ function closeSmsApiBindingList() {
 }
 
 function openSmsSettingsPlaceholder(viewKey) {
-  contactView = viewKey === 'smsChatHistory' ? 'smsChatHistory' : 'smsPreset';
+  contactView = viewKey === 'smsChatHistory'
+    ? 'smsChatHistory'
+    : (viewKey === 'smsSummaryPreset' ? 'smsSummaryPreset' : 'smsPreset');
   if (contactView === 'smsPreset') {
     syncSmsPresetSelection();
+  }
+  if (contactView === 'smsSummaryPreset') {
+    syncSmsSummaryPresetSelection();
   }
   renderActiveAiAppWindow();
 }
@@ -239,6 +341,10 @@ function openSmsSettingsSelection() {
     openSmsSettingsPlaceholder('smsChatHistory');
     return;
   }
+  if (targetEntry.key === 'summaryPreset') {
+    openSmsSettingsPlaceholder('smsSummaryPreset');
+    return;
+  }
   openSmsSettingsPlaceholder('smsPreset');
 }
 
@@ -256,6 +362,15 @@ function bindSmsPresetSelection() {
   const targetPreset = presets[selectedSmsPresetIndex] || null;
   if (!targetPreset) return false;
   setSmsSelectedPreset(targetPreset.id);
+  closeSmsSettingsPlaceholder();
+  return true;
+}
+
+function bindSmsSummaryPresetSelection() {
+  const presets = getSmsPresetEntries();
+  const targetPreset = presets[selectedSmsSummaryPresetIndex] || null;
+  if (!targetPreset) return false;
+  setSmsSelectedSummaryPreset(targetPreset.id);
   closeSmsSettingsPlaceholder();
   return true;
 }
@@ -324,8 +439,13 @@ function deleteAiContact(index) {
   saveAiContacts();
   if (removedContact?.id) {
     delete aiChatHistoryMap[removedContact.id];
+    delete aiSummarizedChatHistoryMap[removedContact.id];
     saveAiChatHistoryMap();
     syncBleachPhoneChatsVariable();
+    const currentChatId = typeof getCurrentSTChatId === 'function' ? getCurrentSTChatId() : '';
+    if (currentChatId && typeof syncBleachPhoneSummarizedChatsRuntimeVariable === 'function') {
+      syncBleachPhoneSummarizedChatsRuntimeVariable({ expectedChatId: currentChatId });
+    }
   }
   if (currentAiContactIndex === index) {
     currentAiContactIndex = -1;
@@ -346,6 +466,7 @@ function deleteAiContact(index) {
   renderActiveAiAppWindow();
 }
 
+// ===== 短信：聊天会话与发送 =====
 function openAiContactChat(index = selectedAiContactIndex) {
   if (index < 0 || index >= aiContacts.length) return;
   currentAiContactIndex = index;
@@ -353,13 +474,13 @@ function openAiContactChat(index = selectedAiContactIndex) {
   contactView = 'chat';
   pendingAiChatInput = '';
   aiChatErrorMessage = '';
-  selectedAiChatMessageId = '';
+  selectedAiChatMessageIds = [];
   aiChatShouldScrollBottom = true;
   renderActiveAiAppWindow();
 }
 
 function getPendingAiContactMessages(contactId) {
-  return getAiContactHistory(contactId).filter((message) => message.role === 'user' && message.pending);
+  return getAiActiveContactHistory(contactId).filter((message) => message.role === 'user' && message.pending);
 }
 
 function getPendingAiChatTargets() {
@@ -525,6 +646,25 @@ function moveContactSelection(direction) {
     return;
   }
 
+  if (contactView === 'smsSummaryPreset') {
+    const presets = getSmsPresetEntries();
+    const presetList = document.getElementById('sms-summary-preset-list');
+    if (presetList) {
+      smsSummaryPresetListScrollTop = presetList.scrollTop;
+    }
+    if (!presets.length) return;
+    if (direction === 'up') {
+      selectedSmsSummaryPresetIndex = Math.max(0, selectedSmsSummaryPresetIndex - 1);
+      renderActiveAiAppWindow();
+      return;
+    }
+    if (direction === 'down') {
+      selectedSmsSummaryPresetIndex = Math.min(presets.length - 1, selectedSmsSummaryPresetIndex + 1);
+      renderActiveAiAppWindow();
+    }
+    return;
+  }
+
   if (contactView === 'chat') {
     const chatList = document.getElementById('ai-contact-chat-list');
     if (!chatList) return;
@@ -574,89 +714,134 @@ function renderContactContent() {
   `;
 }
 
-function renderSmsContent() {
-  if (contactView === 'smsSettings') {
-    const entries = getSmsSettingsEntries();
-    return `
-      <div class="contact-saved-list" id="sms-settings-list">
-        ${entries.map((entry, index) => `
-          <div class="contact-saved-item sms-settings-item ${selectedSmsSettingsIndex === index ? 'is-selected' : ''}" data-sms-settings-index="${index}" data-sms-settings-key="${entry.key}">
-            <div class="contact-saved-main">
-              <span class="contact-saved-name">${escapeHtml(entry.label)}</span>
-            </div>
+// ===== 短信：界面渲染 =====
+function renderSmsSettingsView() {
+  const entries = getSmsSettingsEntries();
+  return `
+    <div class="contact-saved-list" id="sms-settings-list">
+      ${entries.map((entry, index) => `
+        <div class="contact-saved-item sms-settings-item ${selectedSmsSettingsIndex === index ? 'is-selected' : ''}" data-sms-settings-index="${index}" data-sms-settings-key="${entry.key}">
+          <div class="contact-saved-main">
+            <span class="contact-saved-name">${escapeHtml(entry.label)}</span>
           </div>
-        `).join('')}
-      </div>
-    `;
-  }
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 
-  if (contactView === 'smsApiBinding') {
-    const profiles = getSmsApiBindingProfiles();
-    return `
-      <div class="contact-saved-list" id="sms-api-profile-list">
-        ${profiles.map((profile, index) => `
-          <div class="contact-saved-item sms-api-profile-item ${selectedSmsApiProfileIndex === index ? 'is-selected' : ''}" data-sms-api-profile-index="${index}">
-            <div class="contact-saved-main">
-              <span class="contact-saved-name">${escapeHtml(profile.name || '默认')}</span>
-            </div>
+function renderSmsApiBindingView() {
+  const profiles = getSmsApiBindingProfiles();
+  return `
+    <div class="contact-saved-list" id="sms-api-profile-list">
+      ${profiles.map((profile, index) => `
+        <div class="contact-saved-item sms-api-profile-item ${selectedSmsApiProfileIndex === index ? 'is-selected' : ''}" data-sms-api-profile-index="${index}">
+          <div class="contact-saved-main">
+            <span class="contact-saved-name">${escapeHtml(profile.name || '默认')}</span>
           </div>
-        `).join('')}
-      </div>
-    `;
-  }
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 
-  if (contactView === 'smsPreset') {
-    const presets = getSmsPresetEntries();
-    if (!presets.length) {
-      return '<div class="sms-settings-empty-view">暂无预设</div>';
-    }
-    return `
-      <div class="contact-saved-list" id="sms-preset-list">
-        ${presets.map((preset, index) => `
-          <div class="contact-saved-item sms-preset-item ${selectedSmsPresetIndex === index ? 'is-selected' : ''}" data-sms-preset-index="${index}">
-            <div class="contact-saved-main">
-              <span class="contact-saved-name">${escapeHtml(preset.name || `预设 ${index + 1}`)}</span>
-              <span class="contact-saved-preview">${currentSmsPresetId === preset.id ? '当前使用' : `${Array.isArray(preset.blocks) ? preset.blocks.length : 0} 个块`}</span>
-            </div>
+function renderSmsPresetView() {
+  const presets = getSmsPresetEntries();
+  if (!presets.length) {
+    return '<div class="sms-settings-empty-view">暂无预设</div>';
+  }
+  return `
+    <div class="contact-saved-list" id="sms-preset-list">
+      ${presets.map((preset, index) => `
+        <div class="contact-saved-item sms-preset-item ${selectedSmsPresetIndex === index ? 'is-selected' : ''}" data-sms-preset-index="${index}">
+          <div class="contact-saved-main">
+            <span class="contact-saved-name">${escapeHtml(preset.name || `预设 ${index + 1}`)}</span>
+            <span class="contact-saved-preview">${currentSmsPresetId === preset.id ? '当前使用' : `${Array.isArray(preset.blocks) ? preset.blocks.length : 0} 个块`}</span>
           </div>
-        `).join('')}
-      </div>
-    `;
-  }
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 
-  if (contactView === 'smsChatHistory') {
-    return '<div class="sms-settings-empty-view"></div>';
+function renderSmsSummaryPresetView() {
+  const presets = getSmsPresetEntries();
+  if (!presets.length) {
+    return '<div class="sms-settings-empty-view">暂无预设</div>';
   }
+  return `
+    <div class="contact-saved-list" id="sms-summary-preset-list">
+      ${presets.map((preset, index) => `
+        <div class="contact-saved-item sms-preset-item ${selectedSmsSummaryPresetIndex === index ? 'is-selected' : ''}" data-sms-summary-preset-index="${index}">
+          <div class="contact-saved-main">
+            <span class="contact-saved-name">${escapeHtml(preset.name || `预设 ${index + 1}`)}</span>
+            <span class="contact-saved-preview">${currentSmsSummaryPresetId === preset.id ? '当前使用' : `${Array.isArray(preset.blocks) ? preset.blocks.length : 0} 个块`}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 
-  if (contactView === 'chat') {
-    const contact = getCurrentAiContact();
-    const history = contact ? getAiContactHistory(contact.id) : [];
-    const historyHtml = history.map((message) => `
+function renderSmsChatHistoryView() {
+  return '<div class="sms-settings-empty-view"></div>';
+}
+
+function renderSmsChatMessages() {
+  const contact = getCurrentAiContact();
+  const history = contact ? getAiContactHistory(contact.id) : [];
+  const summarizedMessageIds = new Set((contact ? getAiSummarizedContactHistory(contact.id) : []).map((message) => String(message?.id || '').trim()).filter(Boolean));
+  const historyHtml = history.map((message) => {
+    const isSummarized = summarizedMessageIds.has(String(message?.id || '').trim());
+    return `
       <div class="contact-chat-row ${message.role === 'user' ? 'is-user' : 'is-assistant'}">
-        <div class="contact-chat-bubble ${selectedAiChatMessageId === message.id ? 'is-selected' : ''}" data-ai-chat-message-id="${escapeHtml(message.id)}"><span class="contact-chat-text">${escapeHtml(message.content)}</span></div>
-      </div>
-    `).join('');
-    const loadingHtml = aiChatRequestStatus === 'loading'
-      ? `
-        <div class="contact-chat-row is-assistant is-loading">
-          <div class="contact-chat-bubble"><span class="contact-chat-text">…</span></div>
-        </div>
-      `
-      : '';
-    return `
-      <div class="contact-chat">
-        <div id="ai-contact-chat-list" class="contact-chat-list">
-          ${historyHtml}
-          ${loadingHtml}
-        </div>
-        <div class="contact-chat-compose">
-          ${aiChatErrorMessage ? `<div class="contact-chat-status">${escapeHtml(aiChatErrorMessage)}</div>` : ''}
-          <textarea class="contact-chat-input" id="ai-contact-chat-input" rows="1" maxlength="240" spellcheck="false">${escapeHtml(pendingAiChatInput)}</textarea>
-        </div>
+        <div class="contact-chat-bubble ${selectedAiChatMessageIds.includes(message.id) ? 'is-selected' : ''}${isSummarized ? ' is-summarized' : ''}" data-ai-chat-message-id="${escapeHtml(message.id)}"><span class="contact-chat-text">${escapeHtml(message.content)}</span></div>
       </div>
     `;
-  }
+  }).join('');
+  const loadingHtml = aiChatRequestStatus === 'loading'
+    ? `
+      <div class="contact-chat-row is-assistant is-loading">
+        <div class="contact-chat-bubble"><span class="contact-chat-text">…</span></div>
+      </div>
+    `
+    : '';
+  const summaryLoadingHtml = smsSummaryRequestStatus === 'loading' && contact && (!smsSummaryTargetContactId || smsSummaryTargetContactId === contact.id)
+    ? `
+      <div class="contact-chat-row is-assistant is-loading">
+        <div class="contact-chat-bubble"><span class="contact-chat-text">总结中...</span></div>
+      </div>
+    `
+    : '';
 
+  return `
+    <div id="ai-contact-chat-list" class="contact-chat-list">
+      ${historyHtml}
+      ${loadingHtml}
+      ${summaryLoadingHtml}
+    </div>
+  `;
+}
+
+function renderSmsChatComposer() {
+  return `
+    <div class="contact-chat-compose">
+      ${aiChatErrorMessage ? `<div class="contact-chat-status">${escapeHtml(aiChatErrorMessage)}</div>` : ''}
+      <textarea class="contact-chat-input" id="ai-contact-chat-input" rows="1" maxlength="240" spellcheck="false">${escapeHtml(pendingAiChatInput)}</textarea>
+    </div>
+  `;
+}
+
+function renderSmsChatView() {
+  return `
+    <div class="contact-chat">
+      ${renderSmsChatMessages()}
+      ${renderSmsChatComposer()}
+    </div>
+  `;
+}
+
+function renderSmsContactListView() {
   if (!aiContacts.length) {
     return '<div class="app-subline">暂无联系人</div>';
   }
@@ -673,6 +858,34 @@ function renderSmsContent() {
       `).join('')}
     </div>
   `;
+}
+
+function renderSmsContent() {
+  if (contactView === 'smsSettings') {
+    return renderSmsSettingsView();
+  }
+
+  if (contactView === 'smsApiBinding') {
+    return renderSmsApiBindingView();
+  }
+
+  if (contactView === 'smsPreset') {
+    return renderSmsPresetView();
+  }
+
+  if (contactView === 'smsSummaryPreset') {
+    return renderSmsSummaryPresetView();
+  }
+
+  if (contactView === 'smsChatHistory') {
+    return renderSmsChatHistoryView();
+  }
+
+  if (contactView === 'chat') {
+    return renderSmsChatView();
+  }
+
+  return renderSmsContactListView();
 }
 
 

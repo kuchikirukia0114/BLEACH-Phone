@@ -432,7 +432,8 @@ function saveImportedAiPreset(payload, fallbackName = '') {
     ...currentSettings,
     presetEntries: [...presetEntries, nextPreset],
     selectedPresetId: currentSettings.selectedPresetId,
-    selectedSmsPresetId: currentSettings.selectedSmsPresetId
+    selectedSmsPresetId: currentSettings.selectedSmsPresetId,
+    selectedSmsSummaryPresetId: currentSettings.selectedSmsSummaryPresetId
   });
   setPendingAiSettings(aiSettings);
   persistAiSettings(aiSettings);

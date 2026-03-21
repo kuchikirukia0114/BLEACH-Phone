@@ -604,6 +604,7 @@ function normalizeAiSettings(settings) {
   const presetEntries = normalizeAiPresetEntries(nextSettings.presetEntries, nextSettings);
   const selectedPresetId = resolveSelectedAiPresetId(nextSettings.selectedPresetId, presetEntries);
   const selectedSmsPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsPresetId || selectedPresetId, presetEntries);
+  const selectedSmsSummaryPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsSummaryPresetId || selectedSmsPresetId || selectedPresetId, presetEntries);
   const selectedPreset = getAiPresetEntryById(selectedPresetId, { presetEntries }) || null;
 
   return {
@@ -612,6 +613,7 @@ function normalizeAiSettings(settings) {
     selectedApiProfileId,
     selectedPresetId,
     selectedSmsPresetId,
+    selectedSmsSummaryPresetId,
     presetEntries,
     url: selectedApiProfile?.url || '',
     key: selectedApiProfile?.key || '',
@@ -704,6 +706,7 @@ function saveAiSettings(overrides = {}) {
     selectedApiProfileId: isAiApiProfileMeaningful(finalizedProfile) ? finalizedProfile.id : currentSettings.selectedApiProfileId,
     selectedPresetId: overrides.selectedPresetId ?? currentAiPresetId,
     selectedSmsPresetId: overrides.selectedSmsPresetId ?? currentSmsPresetId ?? currentSettings.selectedSmsPresetId,
+    selectedSmsSummaryPresetId: overrides.selectedSmsSummaryPresetId ?? currentSmsSummaryPresetId ?? currentSettings.selectedSmsSummaryPresetId,
     presetEntries: overrides.presetEntries ?? pendingAiPresetEntries,
     mainChatContextN: pendingAiMainChatContextN,
     mainChatUserN: pendingAiMainChatUserN,
@@ -736,6 +739,7 @@ function setPendingAiSettings(settings = aiSettings) {
   pendingAiPresetEntries = normalizeAiPresetEntries(nextSettings.presetEntries, nextSettings);
   currentAiPresetId = resolveSelectedAiPresetId(nextSettings.selectedPresetId, pendingAiPresetEntries);
   currentSmsPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentSmsSummaryPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsSummaryPresetId || currentSmsPresetId || currentAiPresetId, pendingAiPresetEntries);
   pendingAiPresetName = getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.name || '';
   pendingAiPresetBlocks = normalizeAiPresetBlocks(getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.blocks || nextSettings.presetBlocks);
   selectedAiPresetListIndex = pendingAiPresetEntries.length
@@ -826,13 +830,19 @@ function normalizeAiChatHistoryMap(historyMap) {
     contactId,
     Array.isArray(messages)
       ? messages
-        .map((message, index) => ({
-          id: typeof message?.id === 'string' && message.id.trim() ? message.id.trim() : `${contactId}_${Number.isFinite(message?.time) ? message.time : Date.now()}_${index}`,
-          role: message?.role === 'user' ? 'user' : 'assistant',
-          content: typeof message?.content === 'string' ? message.content : '',
-          time: Number.isFinite(message?.time) ? message.time : Date.now() + index,
-          pending: Boolean(message?.pending && message?.role === 'user')
-        }))
+        .map((message, index) => {
+          const normalizedTime = Number.isFinite(message?.time) ? message.time : Date.now() + index;
+          return {
+            id: typeof message?.id === 'string' && message.id.trim() ? message.id.trim() : `${contactId}_${normalizedTime}_${index}`,
+            role: message?.role === 'user' ? 'user' : 'assistant',
+            content: typeof message?.content === 'string' ? message.content : '',
+            time: normalizedTime,
+            timeLabel: typeof message?.timeLabel === 'string' && message.timeLabel.trim()
+              ? message.timeLabel.trim()
+              : (typeof formatDateTimeLabel === 'function' ? formatDateTimeLabel(normalizedTime) : ''),
+            pending: Boolean(message?.pending && message?.role === 'user')
+          };
+        })
         .filter((message) => message.content.trim())
         .slice(-80)
       : []
@@ -865,9 +875,15 @@ async function getStoredAiChatHistoryMap() {
   return fallbackHistoryMap;
 }
 
+function saveAiChatHistoryMapValue(historyMap) {
+  const normalizedHistoryMap = normalizeAiChatHistoryMap(historyMap);
+  persistAiChatHistoryMapToLocalStorage(normalizedHistoryMap);
+  queueBleachPhoneAiStoreValue(indexedDbAiKeys.chatHistory, normalizedHistoryMap, persistAiChatHistoryMapToLocalStorage);
+  return normalizedHistoryMap;
+}
+
 function saveAiChatHistoryMap() {
-  aiChatHistoryMap = normalizeAiChatHistoryMap(aiChatHistoryMap);
-  queueBleachPhoneAiStoreValue(indexedDbAiKeys.chatHistory, aiChatHistoryMap, persistAiChatHistoryMapToLocalStorage);
+  aiChatHistoryMap = saveAiChatHistoryMapValue(aiChatHistoryMap);
   return aiChatHistoryMap;
 }
 

@@ -31,7 +31,9 @@ function getSillyTavernContext() {
 }
 
 const BLEACH_PHONE_CHATS_VARIABLE_NAME = 'bleach_phone_chats';
+const BLEACH_PHONE_CHATS_SUMMARIZED_VARIABLE_NAME = 'bleach_phone_chats_summarized';
 let isBleachPhoneChatsVariableEventsBound = false;
+let isBleachPhoneChatGenerationEventsBound = false;
 let aiReplyChatScheduledTimers = [];
 
 function isAiPresetWorkspaceActive() {
@@ -78,24 +80,64 @@ function getAiContactExportLabel(contact, fallbackIndex = 0) {
   };
 }
 
-function buildBleachPhoneChatsVariableValue() {
+function getAiChatMessageExportTime(message, fallbackTime = Date.now()) {
+  return Number.isFinite(Number(message?.time)) ? Number(message.time) : fallbackTime;
+}
+
+function getAiChatMessageExportTimeLabel(message, fallbackTime = getAiChatMessageExportTime(message)) {
+  const rawTimeLabel = typeof message?.time_label === 'string'
+    ? message.time_label.trim()
+    : (typeof message?.timeLabel === 'string' ? message.timeLabel.trim() : '');
+  return rawTimeLabel || (typeof formatDateTimeLabel === 'function' ? formatDateTimeLabel(fallbackTime) : '');
+}
+
+function getBleachPhoneChatEntryContent(message, fallbackKey = '') {
+  if (!message) return '';
+  if (typeof message === 'string') return message.trim();
+  if (typeof message?.text === 'string' && message.text.trim()) return message.text.trim();
+  if (typeof message?.content === 'string' && message.content.trim()) return message.content.trim();
+  if (fallbackKey && typeof message?.[fallbackKey] === 'string' && message[fallbackKey].trim()) return message[fallbackKey].trim();
+  return '';
+}
+
+function buildBleachPhoneChatsNormalizedValue(historyMap = aiChatHistoryMap, { includePending = true } = {}) {
   const contacts = aiContacts.map((contact, index) => {
-    const messages = Array.isArray(aiChatHistoryMap?.[contact.id]) ? aiChatHistoryMap[contact.id] : [];
+    const messages = Array.isArray(historyMap?.[contact.id]) ? historyMap[contact.id] : [];
     if (!messages.length) return null;
     const chat = [];
     const pendingUserMessages = [];
     messages.forEach((message) => {
       const content = String(message?.content || '').trim();
       if (!content) return;
+      const messageTime = getAiChatMessageExportTime(message);
+      const messageTimeLabel = getAiChatMessageExportTimeLabel(message, messageTime);
       if (message?.role === 'user') {
         if (message?.pending) {
-          pendingUserMessages.push(content);
+          if (!includePending) return;
+          pendingUserMessages.push({
+            user: content,
+            text: content,
+            time: messageTime,
+            time_label: messageTimeLabel
+          });
           return;
         }
-        chat.push({ user: content });
+        chat.push({
+          role: 'user',
+          user: content,
+          text: content,
+          time: messageTime,
+          time_label: messageTimeLabel
+        });
         return;
       }
-      chat.push({ contact: content });
+      chat.push({
+        role: 'assistant',
+        contact: content,
+        text: content,
+        time: messageTime,
+        time_label: messageTimeLabel
+      });
     });
     if (!chat.length && !pendingUserMessages.length) return null;
     return {
@@ -105,11 +147,55 @@ function buildBleachPhoneChatsVariableValue() {
       pending_user_messages: pendingUserMessages
     };
   }).filter(Boolean);
-  return JSON.stringify({
-    version: 2,
+  return {
+    version: 3,
     updated_at: Date.now(),
     contacts
+  };
+}
+
+function stringifyBleachPhoneChatsNormalizedValue(normalizedValue = {}) {
+  return JSON.stringify({
+    version: Number.isFinite(normalizedValue?.version) ? normalizedValue.version : 3,
+    updated_at: Number.isFinite(normalizedValue?.updated_at) ? normalizedValue.updated_at : Date.now(),
+    contacts: Array.isArray(normalizedValue?.contacts) ? normalizedValue.contacts : []
   }, null, 2);
+}
+
+function buildBleachPhoneSummarizedChatsMinimalValue(rawValue) {
+  const normalizedValue = normalizeBleachPhoneChatsVariableValue(rawValue);
+  return {
+    contacts: normalizedValue.contacts.map((entry) => {
+      const chat = Array.isArray(entry?.chat)
+        ? entry.chat.map((message, index) => {
+          const normalizedRole = String(message?.role || '').trim().toLowerCase();
+          const content = getBleachPhoneChatEntryContent(message, normalizedRole === 'user' ? 'user' : 'contact');
+          if (!content) return null;
+          return {
+            role: normalizedRole === 'user' ? 'user' : 'assistant',
+            text: content,
+            time: getAiChatMessageExportTime(message, Date.now() + index)
+          };
+        }).filter(Boolean)
+        : [];
+      if (!chat.length) {
+        return null;
+      }
+      return {
+        ...(entry?.contact_id ? { contact_id: entry.contact_id } : {}),
+        ...(entry?.contact_name ? { contact_name: entry.contact_name } : {}),
+        chat
+      };
+    }).filter(Boolean)
+  };
+}
+
+function stringifyBleachPhoneSummarizedChatsMinimalValue(rawValue) {
+  return JSON.stringify(buildBleachPhoneSummarizedChatsMinimalValue(rawValue), null, 2);
+}
+
+function buildBleachPhoneChatsVariableValue(historyMap = aiChatHistoryMap, options = {}) {
+  return stringifyBleachPhoneChatsNormalizedValue(buildBleachPhoneChatsNormalizedValue(historyMap, options));
 }
 
 function normalizeBleachPhoneChatsVariableValue(rawValue) {
@@ -123,7 +209,7 @@ function normalizeBleachPhoneChatsVariableValue(rawValue) {
   }
   const contacts = Array.isArray(parsedValue?.contacts) ? parsedValue.contacts : [];
   return {
-    version: Number.isFinite(parsedValue?.version) ? parsedValue.version : 2,
+    version: Number.isFinite(parsedValue?.version) ? parsedValue.version : 3,
     updated_at: Number.isFinite(parsedValue?.updated_at) ? parsedValue.updated_at : Date.now(),
     contacts: contacts.map((entry, index) => ({
       contact_id: Number.isFinite(Number(entry?.contact_id)) ? Math.max(1, Number(entry.contact_id)) : 0,
@@ -135,7 +221,58 @@ function normalizeBleachPhoneChatsVariableValue(rawValue) {
   };
 }
 
-function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist = true } = {}) {
+function getBleachPhoneChatsContactMergeKey(entry, fallbackIndex = 0) {
+  const contactId = Number.isFinite(Number(entry?.contact_id)) ? Math.max(1, Number(entry.contact_id)) : 0;
+  const contactName = String(entry?.contact_name || '').trim();
+  if (contactId > 0) return `id:${contactId}`;
+  if (contactName) return `name:${contactName}`;
+  return `index:${fallbackIndex}`;
+}
+
+function mergeBleachPhoneChatsNormalizedValues(baseValue, appendedValue) {
+  const mergedBase = normalizeBleachPhoneChatsVariableValue(baseValue);
+  const mergedAppend = normalizeBleachPhoneChatsVariableValue(appendedValue);
+  const mergedEntries = [];
+  const mergedEntryMap = new Map();
+
+  const appendEntries = (entries = []) => {
+    entries.forEach((entry, index) => {
+      const mergeKey = getBleachPhoneChatsContactMergeKey(entry, index + mergedEntries.length);
+      const existingEntry = mergedEntryMap.get(mergeKey);
+      if (!existingEntry) {
+        const nextEntry = {
+          contact_id: Number.isFinite(Number(entry?.contact_id)) ? Math.max(1, Number(entry.contact_id)) : 0,
+          contact_name: typeof entry?.contact_name === 'string' ? entry.contact_name.trim() : '',
+          contact_index: Number.isFinite(entry?.contact_index) ? entry.contact_index : mergedEntries.length,
+          chat: Array.isArray(entry?.chat) ? [...entry.chat] : [],
+          pending_user_messages: Array.isArray(entry?.pending_user_messages) ? [...entry.pending_user_messages] : []
+        };
+        mergedEntries.push(nextEntry);
+        mergedEntryMap.set(mergeKey, nextEntry);
+        return;
+      }
+      existingEntry.contact_id = existingEntry.contact_id || (Number.isFinite(Number(entry?.contact_id)) ? Math.max(1, Number(entry.contact_id)) : 0);
+      existingEntry.contact_name = existingEntry.contact_name || (typeof entry?.contact_name === 'string' ? entry.contact_name.trim() : '');
+      if (Array.isArray(entry?.chat) && entry.chat.length) {
+        existingEntry.chat.push(...entry.chat);
+      }
+      if (Array.isArray(entry?.pending_user_messages) && entry.pending_user_messages.length) {
+        existingEntry.pending_user_messages.push(...entry.pending_user_messages);
+      }
+    });
+  };
+
+  appendEntries(mergedBase.contacts);
+  appendEntries(mergedAppend.contacts);
+
+  return {
+    version: Math.max(mergedBase.version || 3, mergedAppend.version || 3, 3),
+    updated_at: Date.now(),
+    contacts: mergedEntries.filter((entry) => entry.contact_id || entry.contact_name || entry.chat.length || entry.pending_user_messages.length)
+  };
+}
+
+function buildAiChatRuntimeStateFromBleachPhoneValue(rawValue) {
   const normalizedValue = normalizeBleachPhoneChatsVariableValue(rawValue);
   const nextContacts = [...aiContacts];
   const contactsByExternalId = new Map(nextContacts.map((contact) => [getAiContactExternalId(contact), contact]));
@@ -176,39 +313,52 @@ function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist =
     const chatMessages = entry.chat
       .map((message, messageIndex) => {
         if (!message || typeof message !== 'object') return null;
-        const userContent = typeof message.user === 'string' ? message.user.trim() : '';
-        if (userContent) {
+        const fallbackTime = Date.now() + messageIndex;
+        const normalizedTime = getAiChatMessageExportTime(message, fallbackTime);
+        const normalizedTimeLabel = getAiChatMessageExportTimeLabel(message, normalizedTime);
+        const normalizedRole = String(message?.role || '').trim().toLowerCase();
+        const userContent = typeof message?.user === 'string' && message.user.trim()
+          ? message.user.trim()
+          : (normalizedRole === 'user' ? getBleachPhoneChatEntryContent(message) : '');
+        if (normalizedRole === 'user' || userContent) {
+          if (!userContent) return null;
           return {
             id: `${contact.id}_chat_user_${messageIndex}_${Math.random().toString(36).slice(2, 8)}`,
             role: 'user',
             content: userContent,
-            time: Date.now() + messageIndex,
+            time: normalizedTime,
+            timeLabel: normalizedTimeLabel,
             pending: false
           };
         }
-        const contactContent = typeof message.contact === 'string' ? message.contact.trim() : '';
-        if (contactContent) {
-          return {
-            id: `${contact.id}_chat_contact_${messageIndex}_${Math.random().toString(36).slice(2, 8)}`,
-            role: 'assistant',
-            content: contactContent,
-            time: Date.now() + messageIndex,
-            pending: false
-          };
-        }
-        return null;
+        const contactContent = typeof message?.contact === 'string' && message.contact.trim()
+          ? message.contact.trim()
+          : ((normalizedRole === 'assistant' || normalizedRole === 'contact') ? getBleachPhoneChatEntryContent(message) : '');
+        if (!contactContent) return null;
+        return {
+          id: `${contact.id}_chat_contact_${messageIndex}_${Math.random().toString(36).slice(2, 8)}`,
+          role: 'assistant',
+          content: contactContent,
+          time: normalizedTime,
+          timeLabel: normalizedTimeLabel,
+          pending: false
+        };
       })
       .filter(Boolean);
 
     const pendingMessages = entry.pending_user_messages
       .map((content, pendingIndex) => {
-        const normalizedContent = typeof content === 'string' ? content.trim() : '';
+        const normalizedContent = getBleachPhoneChatEntryContent(content, 'user');
         if (!normalizedContent) return null;
+        const fallbackTime = Date.now() + chatMessages.length + pendingIndex;
+        const normalizedTime = getAiChatMessageExportTime(content, fallbackTime);
+        const normalizedTimeLabel = getAiChatMessageExportTimeLabel(content, normalizedTime);
         return {
           id: `${contact.id}_pending_user_${pendingIndex}_${Math.random().toString(36).slice(2, 8)}`,
           role: 'user',
           content: normalizedContent,
-          time: Date.now() + chatMessages.length + pendingIndex,
+          time: normalizedTime,
+          timeLabel: normalizedTimeLabel,
           pending: true
         };
       })
@@ -217,8 +367,16 @@ function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist =
     nextHistoryMap[contact.id] = [...chatMessages, ...pendingMessages].slice(-80);
   });
 
-  aiContacts = normalizeAiContacts(nextContacts);
-  aiChatHistoryMap = normalizeAiChatHistoryMap(nextHistoryMap);
+  return {
+    contacts: normalizeAiContacts(nextContacts),
+    historyMap: normalizeAiChatHistoryMap(nextHistoryMap)
+  };
+}
+
+function applyBleachPhoneChatsVariableValue(rawValue, { render = true, persist = true } = {}) {
+  const nextRuntimeState = buildAiChatRuntimeStateFromBleachPhoneValue(rawValue);
+  aiContacts = nextRuntimeState.contacts;
+  aiChatHistoryMap = nextRuntimeState.historyMap;
   if (persist) {
     saveAiContacts();
     saveAiChatHistoryMap();
@@ -243,7 +401,7 @@ async function loadBleachPhoneChatsVariableToRuntime({ render = true, persist = 
   const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
   if (!currentChatId) return false;
   try {
-    const result = await stApi.variables.get({ name: BLEACH_PHONE_CHATS_VARIABLE_NAME });
+    const result = await stApi.variables.get({ name: BLEACH_PHONE_CHATS_VARIABLE_NAME, scope: 'local' });
     const rawValue = result?.value;
     if (rawValue === undefined || rawValue === null || rawValue === '') {
       if (clearOnMissing) {
@@ -262,12 +420,34 @@ async function loadBleachPhoneChatsVariableToRuntime({ render = true, persist = 
   }
 }
 
+async function loadBleachPhoneSummarizedChatsVariableToRuntime({ persistContacts = true } = {}) {
+  const rawValue = await getBleachPhoneSummarizedChatsVariableValue();
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    aiSummarizedChatHistoryMap = {};
+    return false;
+  }
+  const nextRuntimeState = buildAiChatRuntimeStateFromBleachPhoneValue(rawValue);
+  if (persistContacts) {
+    aiContacts = nextRuntimeState.contacts;
+    saveAiContacts();
+  } else {
+    aiContacts = nextRuntimeState.contacts;
+  }
+  aiSummarizedChatHistoryMap = nextRuntimeState.historyMap;
+  return true;
+}
+
 function bindBleachPhoneChatsVariableEvents() {
   if (isBleachPhoneChatsVariableEventsBound) return true;
   const ctx = getSillyTavernContext();
   if (typeof ctx?.eventSource?.on !== 'function') return false;
-  const handleChatChanged = () => {
-    loadBleachPhoneChatsVariableToRuntime({ clearOnMissing: true, render: true, persist: true });
+  const handleChatChanged = async () => {
+    isStGenerationRunning = false;
+    await loadBleachPhoneChatsVariableToRuntime({ clearOnMissing: true, render: false, persist: true });
+    await loadBleachPhoneSummarizedChatsVariableToRuntime({ persistContacts: true });
+    if (currentAppKey === 'settings' || currentAppKey === 'contact' || currentAppKey === 'sms') {
+      renderAppWindow(currentAppKey);
+    }
   };
   const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
   ctx.eventSource.on(chatChangedEvent, handleChatChanged);
@@ -278,22 +458,103 @@ function bindBleachPhoneChatsVariableEvents() {
   return true;
 }
 
-async function syncBleachPhoneChatsVariable() {
+function bindBleachPhoneChatGenerationEvents() {
+  if (isBleachPhoneChatGenerationEventsBound) return true;
+  const ctx = getSillyTavernContext();
+  if (typeof ctx?.eventSource?.on !== 'function') return false;
+  const startedEvent = ctx?.eventTypes?.GENERATION_STARTED || 'generation_started';
+  const stoppedEvent = ctx?.eventTypes?.GENERATION_STOPPED || 'generation_stopped';
+  const endedEvent = ctx?.eventTypes?.GENERATION_ENDED || 'generation_ended';
+  const handleStarted = () => {
+    isStGenerationRunning = true;
+  };
+  const handleStopped = () => {
+    isStGenerationRunning = false;
+  };
+  ctx.eventSource.on(startedEvent, handleStarted);
+  ctx.eventSource.on(stoppedEvent, handleStopped);
+  ctx.eventSource.on(endedEvent, handleStopped);
+  isBleachPhoneChatGenerationEventsBound = true;
+  return true;
+}
+
+async function syncBleachPhoneChatsVariableValue(rawValue, { expectedChatId = '' } = {}) {
   const stApi = getSTAPI();
   if (typeof stApi?.variables?.set !== 'function') return false;
   const ctx = getSillyTavernContext();
   const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
-  if (!currentChatId) return false;
+  if (!currentChatId || (expectedChatId && currentChatId !== expectedChatId)) return false;
   try {
-    await stApi.variables.set({
+    const result = await stApi.variables.set({
       name: BLEACH_PHONE_CHATS_VARIABLE_NAME,
-      value: buildBleachPhoneChatsVariableValue()
+      scope: 'local',
+      value: typeof rawValue === 'string'
+        ? rawValue
+        : (rawValue ? stringifyBleachPhoneChatsNormalizedValue(rawValue) : buildBleachPhoneChatsVariableValue())
     });
-    return true;
+    return result?.ok !== false;
   } catch (error) {
     console.warn('[短信变量] 未总结聊天变量同步失败', error);
     return false;
   }
+}
+
+async function syncBleachPhoneChatsVariable() {
+  return syncBleachPhoneChatsVariableValue(buildBleachPhoneChatsVariableValue());
+}
+
+async function getBleachPhoneSummarizedChatsVariableValue({ expectedChatId = '' } = {}) {
+  const stApi = getSTAPI();
+  if (typeof stApi?.variables?.get !== 'function') return null;
+  const ctx = getSillyTavernContext();
+  const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
+  if (!currentChatId || (expectedChatId && currentChatId !== expectedChatId)) return null;
+  try {
+    const result = await stApi.variables.get({ name: BLEACH_PHONE_CHATS_SUMMARIZED_VARIABLE_NAME, scope: 'local' });
+    return result?.value ?? null;
+  } catch (error) {
+    console.warn('[短信变量] 已总结聊天变量读取失败', error);
+    return null;
+  }
+}
+
+async function syncBleachPhoneSummarizedChatsVariable(rawValue, { expectedChatId = '' } = {}) {
+  const stApi = getSTAPI();
+  if (typeof stApi?.variables?.set !== 'function') return false;
+  const ctx = getSillyTavernContext();
+  const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
+  if (!currentChatId || (expectedChatId && currentChatId !== expectedChatId)) return false;
+  try {
+    const result = await stApi.variables.set({
+      name: BLEACH_PHONE_CHATS_SUMMARIZED_VARIABLE_NAME,
+      scope: 'local',
+      value: typeof rawValue === 'string' ? rawValue : stringifyBleachPhoneSummarizedChatsMinimalValue(rawValue)
+    });
+    return result?.ok !== false;
+  } catch (error) {
+    console.warn('[短信变量] 已总结聊天变量同步失败', error);
+    return false;
+  }
+}
+
+function buildBleachPhoneSummarizedChatsRuntimeValue(historyMap = aiSummarizedChatHistoryMap) {
+  return {
+    contacts: aiContacts.map((contact) => ({
+      contact_id: getAiContactExternalId(contact),
+      contact_name: contact.name || '',
+      chat: Array.isArray(historyMap?.[contact.id])
+        ? historyMap[contact.id].map((message) => ({
+          role: message?.role === 'user' ? 'user' : 'assistant',
+          text: String(message?.content || '').trim(),
+          time: Number.isFinite(message?.time) ? message.time : Date.now()
+        }))
+        : []
+    }))
+  };
+}
+
+async function syncBleachPhoneSummarizedChatsRuntimeVariable({ expectedChatId = '' } = {}) {
+  return syncBleachPhoneSummarizedChatsVariable(buildBleachPhoneSummarizedChatsRuntimeValue(), { expectedChatId });
 }
 
 function getTextFromSTMessage(message) {
@@ -1056,13 +1317,17 @@ function getAiPresetAddTypeOptions() {
 
 function getAiPendingTargetsFromHistory() {
   return dedupeAiContacts(aiContacts).map((contact) => {
-    const messages = getAiContactHistory(contact.id)
+    const messages = getAiActiveContactHistory(contact.id)
       .filter((message) => message?.role === 'user' && message?.pending)
-      .map((message) => ({
-        id: message.id,
-        content: String(message.content || '').trim(),
-        time: Number.isFinite(message?.time) ? message.time : Date.now()
-      }))
+      .map((message) => {
+        const normalizedTime = Number.isFinite(message?.time) ? message.time : Date.now();
+        return {
+          id: message.id,
+          content: String(message.content || '').trim(),
+          time: normalizedTime,
+          timeLabel: String(message?.timeLabel || '').trim() || (typeof formatDateTimeLabel === 'function' ? formatDateTimeLabel(normalizedTime) : '')
+        };
+      })
       .filter((message) => message.content);
     if (!messages.length) return null;
     return { contact, messages };
@@ -1070,7 +1335,11 @@ function getAiPendingTargetsFromHistory() {
 }
 
 function getAiPresetInfoSources() {
-  const allHistoryCount = Object.values(aiChatHistoryMap || {}).reduce((count, messages) => count + (Array.isArray(messages) ? messages.length : 0), 0);
+  const allHistoryCount = Object.values(aiChatHistoryMap || {}).reduce((count, messages) => count + (
+    Array.isArray(messages)
+      ? messages.filter((message) => !(message?.role === 'user' && message?.pending)).length
+      : 0
+  ), 0);
   const pendingTargets = getAiPendingTargetsFromHistory();
   const pendingMessageCount = pendingTargets.reduce((count, target) => count + target.messages.length, 0);
   return [
@@ -1572,13 +1841,14 @@ function renderAiPresetOverviewListContent() {
     return '<div class="app-subline ai-preset-empty-line">暂无预设</div>';
   }
   const smsPresetId = getSmsSelectedPresetEntry(aiSettings)?.id || currentSmsPresetId || '';
+  const smsSummaryPresetId = getSmsSelectedSummaryPresetEntry(aiSettings)?.id || currentSmsSummaryPresetId || '';
   return `
     <div class="screensaver-saved-list ai-preset-name-list" id="ai-preset-overview-list">
       ${presetEntries.map((entry, index) => `
         <div class="screensaver-saved-item ai-preset-name-item ${selectedAiPresetListIndex === index ? 'is-selected' : ''}" data-ai-preset-overview-index="${index}" data-ai-preset-id="${entry.id}">
           <div class="screensaver-saved-main">
             <span class="screensaver-saved-name">${escapeHtml(entry.name)}</span>
-            <span class="screensaver-saved-url">${escapeHtml(entry.id === smsPresetId ? '短信' : (Array.isArray(entry.blocks) ? `${entry.blocks.length} 个块` : '0 个块'))}</span>
+            <span class="screensaver-saved-url">${escapeHtml(entry.id === smsPresetId ? '聊天' : (entry.id === smsSummaryPresetId ? '总结' : (Array.isArray(entry.blocks) ? `${entry.blocks.length} 个块` : '0 个块')))}</span>
           </div>
         </div>
       `).join('')}
@@ -1754,6 +2024,12 @@ function getSmsSelectedPresetEntry(settingsSource = aiSettings) {
   return getAiPresetEntryById(targetPresetId, settings) || settings.presetEntries?.[0] || null;
 }
 
+function getSmsSelectedSummaryPresetEntry(settingsSource = aiSettings) {
+  const settings = normalizeAiSettings(settingsSource);
+  const targetPresetId = resolveSelectedAiPresetId(settings.selectedSmsSummaryPresetId || settings.selectedSmsPresetId || settings.selectedPresetId, settings.presetEntries);
+  return getAiPresetEntryById(targetPresetId, settings) || settings.presetEntries?.[0] || null;
+}
+
 async function openAiPresetPreviewWithBlock(targetBlock, title = '', returnView = 'aiPromptEditor') {
   if (!targetBlock) return false;
   aiPresetPreviewTitle = title || '块预览';
@@ -1879,7 +2155,7 @@ function dedupeAiContacts(contacts = []) {
 
 function hasAiContactAwaitingReply(contact) {
   if (!contact?.id) return false;
-  const history = getAiContactHistory(contact.id);
+  const history = getAiActiveContactHistory(contact.id);
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index];
     const content = String(message?.content || '').trim();
@@ -1921,7 +2197,12 @@ function buildAiPendingTargetsPayload(pendingTargets = []) {
     messages: Array.isArray(target?.messages)
       ? target.messages.map((message) => {
         const content = String(message?.content || '').trim();
-        return content ? { user: content } : null;
+        if (!content) return null;
+        return {
+          speaker: 'user',
+          text: content,
+          time_label: getAiChatMessageExportTimeLabel(message)
+        };
       }).filter(Boolean)
       : []
   })).filter((entry) => entry.messages.length);
@@ -1938,11 +2219,17 @@ function getAiSmsHistoryEntries(contacts = []) {
   return contacts.map((contact, index) => ({
     contact_id: getAiContactExternalId(contact) || index + 1,
     contact_name: contact?.name || `联系人 ${index + 1}`,
-    messages_history: getAiContactHistory(contact.id)
+    messages_history: getAiActiveContactHistory(contact.id)
+      .filter((message) => !(message?.role === 'user' && message?.pending))
       .map((message) => {
         const speakerName = message.role === 'user' ? 'user' : (contact?.name || `联系人 ${index + 1}`);
         const content = String(message.content || '').trim();
-        return content ? { [speakerName]: content } : null;
+        if (!content) return null;
+        return {
+          speaker: speakerName,
+          text: content,
+          time_label: getAiChatMessageExportTimeLabel(message)
+        };
       })
       .filter(Boolean)
   })).filter((entry) => entry.messages_history.length);
@@ -2173,6 +2460,245 @@ async function requestAiChatReply(contact, userText, { pendingTargets = [] } = {
     throw new Error('返回内容为空');
   }
   return reply.trim();
+}
+
+function getAiArchivableChatHistoryMap(historyMap = aiChatHistoryMap) {
+  const normalizedHistoryMap = normalizeAiChatHistoryMap(historyMap);
+  return Object.fromEntries(Object.entries(normalizedHistoryMap)
+    .map(([contactId, messages]) => [
+      contactId,
+      (Array.isArray(messages) ? messages : []).filter((message) => !message?.pending)
+    ])
+    .filter(([, messages]) => messages.length));
+}
+
+function hasAiArchivableChatHistory(historyMap = aiChatHistoryMap) {
+  return Object.values(getAiArchivableChatHistoryMap(historyMap)).some((messages) => Array.isArray(messages) && messages.length);
+}
+
+function removeArchivedMessagesFromAiChatHistory(snapshotHistoryMap, sourceHistoryMap = aiChatHistoryMap) {
+  const normalizedSourceMap = normalizeAiChatHistoryMap(sourceHistoryMap);
+  const archivedIdsByContact = new Map(Object.entries(snapshotHistoryMap || {}).map(([contactId, messages]) => [
+    contactId,
+    new Set((Array.isArray(messages) ? messages : []).map((message) => String(message?.id || '').trim()).filter(Boolean))
+  ]));
+  return Object.fromEntries(Object.entries(normalizedSourceMap)
+    .map(([contactId, messages]) => {
+      const archivedIds = archivedIdsByContact.get(contactId);
+      if (!archivedIds || !archivedIds.size) {
+        return [contactId, messages];
+      }
+      return [
+        contactId,
+        (Array.isArray(messages) ? messages : []).filter((message) => !archivedIds.has(String(message?.id || '').trim()))
+      ];
+    })
+    .filter(([, messages]) => Array.isArray(messages) && messages.length));
+}
+
+function appendSmsSummaryIntoMessageContent(existingContent, summaryText) {
+  const normalizedSummaryText = String(summaryText || '').trim();
+  if (!normalizedSummaryText) return String(existingContent || '').trim();
+  const normalizedContent = String(existingContent || '').trim();
+  if (!normalizedContent) return normalizedSummaryText;
+  return `${normalizedContent}\n\n${normalizedSummaryText}`.trim();
+}
+
+function isAssistantLikeSTMessage(message) {
+  const rawRole = String(message?.role || '').trim().toLowerCase();
+  if (rawRole === 'assistant' || rawRole === 'model') return true;
+  if (rawRole === 'user' || rawRole === 'system') return false;
+  return message?.is_user === false;
+}
+
+async function getStChatMessagesForSmsSummary() {
+  const stApi = getSTAPI();
+  if (stApi?.chatHistory?.list) {
+    try {
+      const result = await stApi.chatHistory.list({ format: 'openai' });
+      return Array.isArray(result?.messages) ? result.messages : [];
+    } catch (error) {
+      console.warn('[短信总结] 读取酒馆聊天楼层失败，改用上下文回退', error);
+    }
+  }
+  const ctx = getSillyTavernContext();
+  return Array.isArray(ctx?.chat) ? ctx.chat : [];
+}
+
+async function getSmsSummaryTargetMessageInfo() {
+  const messages = await getStChatMessagesForSmsSummary();
+  const assistantIndexes = messages.reduce((indexes, message, index) => {
+    if (isAssistantLikeSTMessage(message)) {
+      indexes.push(index);
+    }
+    return indexes;
+  }, []);
+  if (!assistantIndexes.length) {
+    return { index: -1, message: null };
+  }
+  const targetIndex = isStGenerationRunning && assistantIndexes.length > 1
+    ? assistantIndexes[assistantIndexes.length - 2]
+    : assistantIndexes[assistantIndexes.length - 1];
+  return {
+    index: targetIndex,
+    message: messages[targetIndex] || null
+  };
+}
+
+async function writeSmsSummaryToStMessageFloor(summaryText, { chatId = '' } = {}) {
+  const normalizedSummaryText = String(summaryText || '').trim();
+  if (!normalizedSummaryText) return false;
+  const activeChatId = getCurrentSTChatId();
+  if (chatId && activeChatId && chatId !== activeChatId) return false;
+  const stApi = getSTAPI();
+  if (!stApi?.chatHistory) return false;
+  const targetInfo = await getSmsSummaryTargetMessageInfo();
+  if (Number.isFinite(targetInfo.index) && targetInfo.index >= 0 && typeof stApi.chatHistory.update === 'function') {
+    const nextContent = appendSmsSummaryIntoMessageContent(getTextFromSTMessage(targetInfo.message), normalizedSummaryText);
+    await stApi.chatHistory.update({
+      index: targetInfo.index,
+      content: nextContent
+    });
+    return true;
+  }
+  if (typeof stApi.chatHistory.create === 'function') {
+    await stApi.chatHistory.create({
+      role: 'model',
+      content: normalizedSummaryText
+    });
+    return true;
+  }
+  return false;
+}
+
+async function archiveSmsChatHistorySnapshot(snapshotHistoryMap, { chatId = '' } = {}) {
+  const normalizedSnapshotValue = buildBleachPhoneChatsNormalizedValue(snapshotHistoryMap, { includePending: false });
+  if (!Array.isArray(normalizedSnapshotValue.contacts) || !normalizedSnapshotValue.contacts.length) {
+    return true;
+  }
+  const currentArchivedRawValue = await getBleachPhoneSummarizedChatsVariableValue({ expectedChatId: chatId });
+  const mergedArchivedValue = mergeBleachPhoneChatsNormalizedValues(currentArchivedRawValue, normalizedSnapshotValue);
+  const didSyncSummarizedVariable = await syncBleachPhoneSummarizedChatsVariable(mergedArchivedValue, { expectedChatId: chatId });
+  if (didSyncSummarizedVariable) {
+    const archivedRuntimeState = buildAiChatRuntimeStateFromBleachPhoneValue(mergedArchivedValue);
+    aiContacts = archivedRuntimeState.contacts;
+    aiSummarizedChatHistoryMap = archivedRuntimeState.historyMap;
+  }
+  return didSyncSummarizedVariable;
+}
+
+async function buildAiSmsSummaryMessages(contact = null) {
+  const summaryPresetEntry = getSmsSelectedSummaryPresetEntry(aiSettings);
+  if (!summaryPresetEntry?.blocks?.length) {
+    throw createSilentAiChatError('短信总结未配置总结预设');
+  }
+  const messages = await buildAiMessagesFromPreset(contact, '', summaryPresetEntry, { pendingTargets: [] });
+  const normalizedMessages = Array.isArray(messages)
+    ? messages.filter((message) => String(message?.content || '').trim())
+    : [];
+  if (!normalizedMessages.length) {
+    throw createSilentAiChatError('短信总结预设内容为空');
+  }
+  return normalizedMessages;
+}
+
+async function requestAiSmsSummaryReply(contact = null) {
+  const settings = getAiRuntimeSettings('contactChat', aiSettings);
+  if (!settings.url) throw createSilentAiChatError('短信总结未绑定 API');
+  if (!settings.key) throw createSilentAiChatError('短信总结未配置 API Key');
+  if (!settings.model) throw createSilentAiChatError('短信总结未配置模型');
+  const body = {
+    model: settings.model,
+    messages: await buildAiSmsSummaryMessages(contact),
+    stream: false
+  };
+  const temperature = Number(settings.temperature);
+  const frequencyPenalty = Number(settings.frequencyPenalty);
+  const presencePenalty = Number(settings.presencePenalty);
+  const topP = Number(settings.topP);
+  if (settings.temperature !== '' && Number.isFinite(temperature)) {
+    body.temperature = temperature;
+  }
+  if (settings.frequencyPenalty !== '' && Number.isFinite(frequencyPenalty)) {
+    body.frequency_penalty = frequencyPenalty;
+  }
+  if (settings.presencePenalty !== '' && Number.isFinite(presencePenalty)) {
+    body.presence_penalty = presencePenalty;
+  }
+  if (settings.topP !== '' && Number.isFinite(topP)) {
+    body.top_p = topP;
+  }
+  const response = await fetch(settings.url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${settings.key}`
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `请求失败 (${response.status})`);
+  }
+  const rawContent = data?.choices?.[0]?.message?.content;
+  const reply = Array.isArray(rawContent)
+    ? rawContent.map((part) => typeof part === 'string' ? part : part?.text || '').join('')
+    : String(rawContent || '');
+  if (!reply.trim()) {
+    throw new Error('返回内容为空');
+  }
+  return reply.trim();
+}
+
+async function triggerSmsChatSummaryFromStatusBar() {
+  if (currentAppKey !== 'sms' || contactView !== 'chat') return false;
+  if (smsSummaryRequestStatus === 'loading' || aiChatRequestStatus === 'loading') return false;
+  if (!hasAiArchivableChatHistory(aiChatHistoryMap)) {
+    aiChatErrorMessage = '暂无可总结聊天';
+    renderActiveAiAppWindow();
+    return false;
+  }
+  const summaryChatId = getCurrentSTChatId();
+  if (!summaryChatId) return false;
+  const currentContact = getCurrentAiContact();
+  const snapshotHistoryMap = getAiArchivableChatHistoryMap(aiChatHistoryMap);
+  smsSummaryRequestStatus = 'loading';
+  smsSummaryTargetContactId = currentContact?.id || '';
+  aiChatErrorMessage = '';
+  aiChatShouldScrollBottom = true;
+  renderActiveAiAppWindow();
+  try {
+    const summaryReply = await requestAiSmsSummaryReply(currentContact);
+    const didWriteSummary = await writeSmsSummaryToStMessageFloor(summaryReply, { chatId: summaryChatId });
+    if (!didWriteSummary) {
+      throw new Error('短信总结写入酒馆楼层失败');
+    }
+    const didArchive = await archiveSmsChatHistorySnapshot(snapshotHistoryMap, { chatId: summaryChatId });
+    if (!didArchive) {
+      throw new Error('短信总结归档失败');
+    }
+    const nextActiveHistoryMap = removeArchivedMessagesFromAiChatHistory(snapshotHistoryMap, aiChatHistoryMap);
+    const didSyncActiveVariable = await syncBleachPhoneChatsVariableValue(buildBleachPhoneChatsVariableValue(nextActiveHistoryMap), { expectedChatId: summaryChatId });
+    if (!didSyncActiveVariable) {
+      throw new Error('短信总结清理未总结变量失败');
+    }
+    const committedActiveHistoryMap = typeof saveAiChatHistoryMapValue === 'function'
+      ? saveAiChatHistoryMapValue(nextActiveHistoryMap)
+      : normalizeAiChatHistoryMap(nextActiveHistoryMap);
+    aiChatHistoryMap = committedActiveHistoryMap;
+    smsSummaryRequestStatus = 'idle';
+    smsSummaryTargetContactId = '';
+    aiChatShouldScrollBottom = true;
+    renderActiveAiAppWindow();
+    return true;
+  } catch (error) {
+    smsSummaryRequestStatus = 'idle';
+    smsSummaryTargetContactId = '';
+    aiChatErrorMessage = error?.silent ? String(error.message || '').trim() : '总结失败';
+    console.error('[短信总结] 执行失败', error);
+    renderActiveAiAppWindow();
+    return false;
+  }
 }
 
 function flashAiMainChatRuleMode(index) {

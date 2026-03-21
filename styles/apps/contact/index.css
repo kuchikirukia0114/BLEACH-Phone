@@ -177,6 +177,12 @@
   .contact-chat-bubble.is-selected {
     border-color: var(--accent);
   }
+  .contact-chat-bubble.is-summarized {
+    opacity: 0.58;
+  }
+  .contact-chat-bubble.is-summarized.is-selected {
+    opacity: 0.82;
+  }
   .contact-chat-text {
     display: inline;
     white-space: inherit;
