@@ -127,8 +127,21 @@
     font-size: calc(11px * var(--ui-font-scale));
   }
   #screen-content {
-    height: calc(100% - 28px);
+    height: calc(100% - 24px);
     position: relative;
+  }
+  .screen,
+  #screen-content,
+  #screen-content * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .screen::-webkit-scrollbar,
+  #screen-content::-webkit-scrollbar,
+  #screen-content *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
   .screen-saver {
     position: absolute;
@@ -549,11 +562,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: calc(4px * var(--ui-font-scale));
-    height: 28px;
+    gap: calc(3px * var(--ui-font-scale));
+    height: 24px;
     background: var(--status-bg);
     border-bottom: 2px solid var(--status-border);
-    padding: 0 6px;
+    padding: 0 5px;
     position: relative;
     z-index: 5;
   }

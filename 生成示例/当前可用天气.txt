@@ -1,0 +1,64 @@
+天气识别来源：主聊天中 AI 最新一条回复文本
+weather_json 顶层可额外返回：date / weekday / time
+变量记录：天气写入变量时会一并保存 date / weekday / time
+手机通用时间变量：bleach_phone_datetime（按当前聊天 local 作用域保存）
+phoneDisplayTime 现会优先跟随天气时间；没有天气预设时间时会回退为系统时间
+夜间判定：优先使用 weather_json 返回的 time；如果没有返回时间，再回退到本地时间
+夜间判定时间：18:00 - 次日 05:59
+说明：夜间只会把“有夜间版本”的对应天气替换成夜间图标；没有夜间版本的天气，夜里仍使用原版图标。
+
+【白天 / 默认识别关键词】
+晴朗、晴天、放晴、晴 -> sunny
+多云 -> cloudy
+阴天、阴沉、转阴、阴 -> overcast
+细雨、毛毛雨 -> drizzle
+小雨、下雨、有雨、雨天、雨 -> lightRain
+中雨 -> moderateRain
+大雨 -> heavyRain
+暴雨 -> rainstorm
+暴风雨 -> storm
+雷阵雨 -> thunderShower
+强雷阵雨 -> strongThunderShower
+雷暴、闪电 -> lightning
+小雪、下雪、有雪、雪天、雪 -> lightSnow
+中雪 -> moderateSnow
+大雪 -> heavySnow
+暴雪 -> blizzard
+雨夹雪 -> sleet
+冻雨 -> freezingRain
+冰雹 -> hail
+薄雾 -> mist
+大雾、浓雾、雾 -> fog
+霾 -> haze
+扬沙 -> dust
+沙尘 -> sand
+沙尘暴 -> sandstorm
+大风、强风、狂风 -> wind
+台风 -> typhoon
+龙卷风 -> tornado
+
+【夜间会替换成夜间版本的对应天气】
+晴朗、晴天、放晴、晴 -> nightSunny
+多云 -> nightCloudy
+阴天、阴沉、转阴、阴 -> nightOvercast
+细雨、毛毛雨、小雨、下雨、有雨、雨天、雨、中雨 -> nightRain
+大雨、暴雨 -> nightHeavyRain
+小雪、下雪、有雪、雪天、雪、中雪、大雪、暴雪 -> nightSnow
+
+【夜间没有专用版本，仍使用原版图标的天气】
+storm
+thunderShower
+strongThunderShower
+lightning
+sleet
+freezingRain
+hail
+mist
+fog
+haze
+dust
+sand
+sandstorm
+wind
+typhoon
+tornado

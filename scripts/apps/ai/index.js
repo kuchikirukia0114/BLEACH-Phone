@@ -32,6 +32,18 @@ function getSillyTavernContext() {
 
 const BLEACH_PHONE_CHATS_VARIABLE_NAME = 'bleach_phone_chats';
 const BLEACH_PHONE_CHATS_SUMMARIZED_VARIABLE_NAME = 'bleach_phone_chats_summarized';
+const BLEACH_PHONE_MAP_VARIABLE_NAME = 'bleach_phone_map_json';
+const BLEACH_PHONE_ITEMS_VARIABLE_NAME = 'bleach_phone_items_json';
+const BLEACH_PHONE_RADIO_VARIABLE_NAME = 'bleach_phone_radio_json';
+const BLEACH_PHONE_CHARS_VARIABLE_NAME = 'bleach_phone_chars_json';
+const BLEACH_PHONE_PRESET_WEATHER_VARIABLE_NAME = 'bleach_phone_weather_json';
+const BLEACH_PHONE_PRESET_DATETIME_VARIABLE_NAME = 'bleach_phone_datetime';
+const BLEACH_PHONE_MAP_INFO_SOURCE_ID = '__map_info__';
+const BLEACH_PHONE_ITEMS_INFO_SOURCE_ID = '__items_current_block__';
+const BLEACH_PHONE_RADIO_INFO_SOURCE_ID = '__radio_current_block__';
+const BLEACH_PHONE_CHARS_INFO_SOURCE_ID = '__chars_current_block__';
+const BLEACH_PHONE_DATETIME_INFO_SOURCE_ID = '__datetime_current_block__';
+const BLEACH_PHONE_WEATHER_INFO_SOURCE_ID = '__weather_current_block__';
 let isBleachPhoneChatsVariableEventsBound = false;
 let isBleachPhoneChatGenerationEventsBound = false;
 let aiReplyChatScheduledTimers = [];
@@ -162,40 +174,82 @@ function stringifyBleachPhoneChatsNormalizedValue(normalizedValue = {}) {
   }, null, 2);
 }
 
-function buildBleachPhoneSummarizedChatsMinimalValue(rawValue) {
-  const normalizedValue = normalizeBleachPhoneChatsVariableValue(rawValue);
+function buildBleachPhoneMinimalMessageValue(message, { fallbackRole = 'assistant', includeRole = true, fallbackTime = Date.now() } = {}) {
+  const normalizedFallbackRole = fallbackRole === 'user' ? 'user' : 'assistant';
+  const normalizedRole = String(message?.role || '').trim().toLowerCase();
+  const inferredRole = normalizedRole === 'user'
+    ? 'user'
+    : ((normalizedRole === 'assistant' || normalizedRole === 'contact')
+      ? 'assistant'
+      : ((typeof message?.user === 'string' && message.user.trim()) ? 'user' : ((typeof message?.contact === 'string' && message.contact.trim()) ? 'assistant' : normalizedFallbackRole)));
+  const content = getBleachPhoneChatEntryContent(message, inferredRole === 'user' ? 'user' : 'contact');
+  if (!content) return null;
+  const time = getAiChatMessageExportTime(message, fallbackTime);
+  const timeLabel = getAiChatMessageExportTimeLabel(message, time);
   return {
-    contacts: normalizedValue.contacts.map((entry) => {
-      const chat = Array.isArray(entry?.chat)
-        ? entry.chat.map((message, index) => {
-          const normalizedRole = String(message?.role || '').trim().toLowerCase();
-          const content = getBleachPhoneChatEntryContent(message, normalizedRole === 'user' ? 'user' : 'contact');
-          if (!content) return null;
-          return {
-            role: normalizedRole === 'user' ? 'user' : 'assistant',
-            text: content,
-            time: getAiChatMessageExportTime(message, Date.now() + index)
-          };
-        }).filter(Boolean)
-        : [];
-      if (!chat.length) {
-        return null;
-      }
-      return {
-        ...(entry?.contact_id ? { contact_id: entry.contact_id } : {}),
-        ...(entry?.contact_name ? { contact_name: entry.contact_name } : {}),
-        chat
-      };
-    }).filter(Boolean)
+    ...(includeRole ? { role: inferredRole } : {}),
+    text: content,
+    time,
+    time_label: timeLabel
   };
 }
 
+function buildBleachPhoneMinimalContactValue(entry, { includePending = true } = {}) {
+  const baseTime = Date.now();
+  const chat = Array.isArray(entry?.chat)
+    ? entry.chat.map((message, index) => buildBleachPhoneMinimalMessageValue(message, {
+      fallbackRole: 'assistant',
+      includeRole: true,
+      fallbackTime: baseTime + index
+    })).filter(Boolean)
+    : [];
+  const pendingUserMessages = includePending && Array.isArray(entry?.pending_user_messages)
+    ? entry.pending_user_messages.map((message, index) => buildBleachPhoneMinimalMessageValue(message, {
+      fallbackRole: 'user',
+      includeRole: false,
+      fallbackTime: baseTime + chat.length + index
+    })).filter(Boolean)
+    : [];
+  if (!chat.length && !pendingUserMessages.length) {
+    return null;
+  }
+  return {
+    ...(entry?.contact_id ? { contact_id: entry.contact_id } : {}),
+    ...(entry?.contact_name ? { contact_name: entry.contact_name } : {}),
+    ...(chat.length ? { chat } : {}),
+    ...(includePending && pendingUserMessages.length ? { pending_user_messages: pendingUserMessages } : {})
+  };
+}
+
+function buildBleachPhoneMinimalChatsValue(rawValue, { includePending = true } = {}) {
+  const normalizedValue = normalizeBleachPhoneChatsVariableValue(rawValue);
+  return {
+    contacts: normalizedValue.contacts.map((entry) => buildBleachPhoneMinimalContactValue(entry, { includePending })).filter(Boolean)
+  };
+}
+
+function stringifyBleachPhoneMinimalChatsValue(rawValue, options = {}) {
+  return JSON.stringify(buildBleachPhoneMinimalChatsValue(rawValue, options), null, 2);
+}
+
+function buildBleachPhoneChatsMinimalValue(rawValue) {
+  return buildBleachPhoneMinimalChatsValue(rawValue, { includePending: true });
+}
+
+function stringifyBleachPhoneChatsMinimalValue(rawValue) {
+  return stringifyBleachPhoneMinimalChatsValue(rawValue, { includePending: true });
+}
+
+function buildBleachPhoneSummarizedChatsMinimalValue(rawValue) {
+  return buildBleachPhoneMinimalChatsValue(rawValue, { includePending: false });
+}
+
 function stringifyBleachPhoneSummarizedChatsMinimalValue(rawValue) {
-  return JSON.stringify(buildBleachPhoneSummarizedChatsMinimalValue(rawValue), null, 2);
+  return stringifyBleachPhoneMinimalChatsValue(rawValue, { includePending: false });
 }
 
 function buildBleachPhoneChatsVariableValue(historyMap = aiChatHistoryMap, options = {}) {
-  return stringifyBleachPhoneChatsNormalizedValue(buildBleachPhoneChatsNormalizedValue(historyMap, options));
+  return stringifyBleachPhoneChatsMinimalValue(buildBleachPhoneChatsNormalizedValue(historyMap, options));
 }
 
 function normalizeBleachPhoneChatsVariableValue(rawValue) {
@@ -490,7 +544,7 @@ async function syncBleachPhoneChatsVariableValue(rawValue, { expectedChatId = ''
       scope: 'local',
       value: typeof rawValue === 'string'
         ? rawValue
-        : (rawValue ? stringifyBleachPhoneChatsNormalizedValue(rawValue) : buildBleachPhoneChatsVariableValue())
+        : (rawValue ? stringifyBleachPhoneChatsMinimalValue(rawValue) : buildBleachPhoneChatsVariableValue())
     });
     return result?.ok !== false;
   } catch (error) {
@@ -538,19 +592,7 @@ async function syncBleachPhoneSummarizedChatsVariable(rawValue, { expectedChatId
 }
 
 function buildBleachPhoneSummarizedChatsRuntimeValue(historyMap = aiSummarizedChatHistoryMap) {
-  return {
-    contacts: aiContacts.map((contact) => ({
-      contact_id: getAiContactExternalId(contact),
-      contact_name: contact.name || '',
-      chat: Array.isArray(historyMap?.[contact.id])
-        ? historyMap[contact.id].map((message) => ({
-          role: message?.role === 'user' ? 'user' : 'assistant',
-          text: String(message?.content || '').trim(),
-          time: Number.isFinite(message?.time) ? message.time : Date.now()
-        }))
-        : []
-    }))
-  };
+  return buildBleachPhoneChatsNormalizedValue(historyMap, { includePending: false });
 }
 
 async function syncBleachPhoneSummarizedChatsRuntimeVariable({ expectedChatId = '' } = {}) {
@@ -1035,8 +1077,6 @@ function openNewAiApiProfileDraft() {
   pendingAiKey = '';
   pendingAiModel = '';
   pendingAiTemperature = '';
-  pendingAiFrequencyPenalty = '';
-  pendingAiPresencePenalty = '';
   pendingAiTopP = '';
   aiConfigConnectionState = 'idle';
   aiConfigStatusMessage = '新建API';
@@ -1245,6 +1285,7 @@ function isAiPresetMessageBlock(block) {
 function resetAiPresetBlockDraftState() {
   editingAiPresetBlockIndex = -1;
   pendingAiPresetBlockDraft = null;
+  pendingAiPresetInfoSourceRoleMap = {};
 }
 
 function replaceAiPresetBlockFromDraft(blockDraft, index = editingAiPresetBlockIndex) {
@@ -1344,19 +1385,49 @@ function getAiPresetInfoSources() {
   const pendingMessageCount = pendingTargets.reduce((count, target) => count + target.messages.length, 0);
   return [
     {
+      id: BLEACH_PHONE_MAP_INFO_SOURCE_ID,
+      name: '地图信息',
+      subtitle: '当前 map_json'
+    },
+    {
+      id: BLEACH_PHONE_ITEMS_INFO_SOURCE_ID,
+      name: '物品信息',
+      subtitle: '当前 items_json'
+    },
+    {
+      id: BLEACH_PHONE_RADIO_INFO_SOURCE_ID,
+      name: '广播信息',
+      subtitle: '当前 radio_json'
+    },
+    {
+      id: BLEACH_PHONE_CHARS_INFO_SOURCE_ID,
+      name: '情报信息',
+      subtitle: '当前 chars_json'
+    },
+    {
+      id: BLEACH_PHONE_DATETIME_INFO_SOURCE_ID,
+      name: '时间信息',
+      subtitle: '当前 bleach_phone_datetime'
+    },
+    {
+      id: BLEACH_PHONE_WEATHER_INFO_SOURCE_ID,
+      name: '天气信息',
+      subtitle: '当前 weather_json'
+    },
+    {
       id: '__sms_chat_history__',
       name: '短信聊天历史',
-      subtitle: allHistoryCount ? `完整发送 · ${allHistoryCount}条未总结记录` : '完整发送 · 暂无记录'
+      subtitle: allHistoryCount ? `${allHistoryCount}条未总结` : '暂无未总结'
     },
     {
       id: '__role_info__',
       name: '角色信息',
-      subtitle: '用户已发出且联系人未回复时触发'
+      subtitle: '待回复联系人'
     },
     {
       id: '__pending_user_messages__',
       name: '待发送消息',
-      subtitle: pendingMessageCount ? `当前待发送 ${pendingMessageCount} 条` : '当前无待发送消息'
+      subtitle: pendingMessageCount ? `${pendingMessageCount}条待发送` : '暂无待发送'
     }
   ];
 }
@@ -1375,6 +1446,152 @@ function isAiPresetPendingUserMessagesSource(sourceId, sourceScope = '') {
   const normalizedScope = String(sourceScope || '').trim();
   return normalizedId === '__pending_user_messages__'
     || normalizedScope === 'pending_user_messages';
+}
+
+function isAiPresetMapInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_MAP_INFO_SOURCE_ID
+    || normalizedScope === 'map_json';
+}
+
+function isAiPresetItemsInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_ITEMS_INFO_SOURCE_ID
+    || normalizedScope === 'items_json';
+}
+
+function isAiPresetRadioInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_RADIO_INFO_SOURCE_ID
+    || normalizedScope === 'radio_json';
+}
+
+function isAiPresetCharsInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_CHARS_INFO_SOURCE_ID
+    || normalizedScope === 'chars_json';
+}
+
+function isAiPresetDateTimeInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_DATETIME_INFO_SOURCE_ID
+    || normalizedScope === 'phone_datetime';
+}
+
+function isAiPresetWeatherInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_WEATHER_INFO_SOURCE_ID
+    || normalizedScope === 'weather_json';
+}
+
+function getAiPresetInfoSourceScope(sourceId = '', sourceScope = '') {
+  const normalizedScope = String(sourceScope || '').trim();
+  if (normalizedScope) return normalizedScope;
+  if (isAiPresetMapInfoSource(sourceId)) return 'map_json';
+  if (isAiPresetItemsInfoSource(sourceId)) return 'items_json';
+  if (isAiPresetRadioInfoSource(sourceId)) return 'radio_json';
+  if (isAiPresetCharsInfoSource(sourceId)) return 'chars_json';
+  if (isAiPresetDateTimeInfoSource(sourceId)) return 'phone_datetime';
+  if (isAiPresetWeatherInfoSource(sourceId)) return 'weather_json';
+  if (isAiPresetSmsChatHistorySource(sourceId)) return 'sms_chat_history';
+  if (isAiPresetPendingUserMessagesSource(sourceId)) return 'pending_user_messages';
+  return '';
+}
+
+function getAiPresetInfoDefaultMessageRole(sourceId = '', sourceScope = '') {
+  return isAiPresetPendingUserMessagesSource(sourceId, sourceScope) ? 'user' : 'system';
+}
+
+function getAiPresetInfoMessageRole(block = null) {
+  const explicitRole = String(block?.messageRole || '').trim();
+  if (['system', 'user', 'assistant'].includes(explicitRole)) {
+    return explicitRole;
+  }
+  return getAiPresetInfoDefaultMessageRole(block?.sourceId, block?.sourceScope);
+}
+
+function getAiPresetInfoMessageRoleLabel(block = null) {
+  const role = getAiPresetInfoMessageRole(block);
+  if (role === 'user') return 'user';
+  if (role === 'assistant') return 'assistant';
+  return 'system';
+}
+
+function getAiPresetInfoPickerDraft(block = null, index = 0) {
+  return normalizeAiPresetBlock({
+    ...(block || {}),
+    role: '_info',
+    name: String(block?.name || '').trim() || '信息槽',
+    text: '',
+    messageRole: getAiPresetInfoMessageRole(block)
+  }, index);
+}
+
+function getAiPresetInfoPickerRoleMap(sources = [], block = null) {
+  const nextMap = Object.fromEntries((Array.isArray(sources) ? sources : []).map((source) => [
+    source.id,
+    getAiPresetInfoDefaultMessageRole(source.id, getAiPresetInfoSourceScope(source.id))
+  ]));
+  if (block?.sourceId) {
+    nextMap[String(block.sourceId).trim()] = getAiPresetInfoMessageRole(block);
+  }
+  return nextMap;
+}
+
+function getAiPresetInfoSourceMessageRole(sourceId = '') {
+  const normalizedSourceId = String(sourceId || '').trim();
+  const mappedRole = String(pendingAiPresetInfoSourceRoleMap?.[normalizedSourceId] || '').trim();
+  if (['system', 'user', 'assistant'].includes(mappedRole)) {
+    return mappedRole;
+  }
+  return getAiPresetInfoDefaultMessageRole(normalizedSourceId);
+}
+
+function getAiPresetCurrentJsonSlotText(variableName = '', label = '信息槽') {
+  const normalizedVariableName = String(variableName || '').trim();
+  if (!normalizedVariableName) return '';
+  try {
+    const ctx = getSillyTavernContext();
+    const variableReader = ctx?.variables?.local?.get;
+    if (typeof variableReader === 'function') {
+      const rawValue = variableReader(normalizedVariableName);
+      if (rawValue == null || rawValue === '') return '';
+      return typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue, null, 2);
+    }
+  } catch (error) {
+    console.warn(`[预设] ${label}读取失败`, error);
+  }
+  return '';
+}
+
+function getAiPresetMapInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_MAP_VARIABLE_NAME, '地图当前块');
+}
+
+function getAiPresetItemsInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_ITEMS_VARIABLE_NAME, '物品当前块');
+}
+
+function getAiPresetRadioInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_RADIO_VARIABLE_NAME, '广播当前块');
+}
+
+function getAiPresetCharsInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_CHARS_VARIABLE_NAME, 'chars当前块');
+}
+
+function getAiPresetDateTimeInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_PRESET_DATETIME_VARIABLE_NAME, '时间当前块');
+}
+
+function getAiPresetWeatherInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_PRESET_WEATHER_VARIABLE_NAME, '天气当前块');
 }
 
 async function loadAiPresetWorldBookOptions() {
@@ -1484,7 +1701,8 @@ function openAiPresetInfoSourcePicker(blockIndex = -1) {
       ? matchedIndex
       : Math.min(Math.max(selectedAiPresetInfoSourceIndex, 0), sources.length - 1))
     : -1;
-  pendingAiPresetBlockDraft = null;
+  pendingAiPresetInfoSourceRoleMap = getAiPresetInfoPickerRoleMap(sources, targetBlock);
+  pendingAiPresetBlockDraft = getAiPresetInfoPickerDraft(targetBlock, targetBlock ? targetIndex : pendingAiPresetBlocks.length);
   settingsView = 'aiPromptInfoSourcePicker';
   renderActiveAiPresetWorkspace();
 }
@@ -1607,19 +1825,48 @@ function confirmAiPresetInfoSourceSelection() {
   const source = sources[Math.min(selectedAiPresetInfoSourceIndex, sources.length - 1)];
   const nextBlock = {
     role: '_info',
+    messageRole: getAiPresetInfoSourceMessageRole(source.id),
     name: `信息槽 · ${source.name}`,
     text: '',
     sourceId: source.id,
     sourceName: source.name,
-    sourceScope: isAiPresetSmsChatHistorySource(source.id)
-      ? 'sms_chat_history'
-      : (isAiPresetPendingUserMessagesSource(source.id) ? 'pending_user_messages' : '')
+    sourceScope: getAiPresetInfoSourceScope(source.id)
   };
   if (editingAiPresetBlockIndex >= 0) {
     replaceAiPresetBlockFromDraft(nextBlock, editingAiPresetBlockIndex);
     return;
   }
   addAiPresetBlockFromDraft(nextBlock);
+}
+
+function cycleAiPresetInfoMessageRole(step = 1, sourceIndex = null) {
+  const roleOptions = ['system', 'user', 'assistant'];
+  const normalizedSourceIndex = Number(sourceIndex);
+  if (!Number.isFinite(normalizedSourceIndex)) {
+    return;
+  }
+  const sources = getAiPresetInfoSources();
+  if (!sources.length || normalizedSourceIndex < 0 || normalizedSourceIndex >= sources.length) {
+    return;
+  }
+  selectedAiPresetInfoSourceIndex = normalizedSourceIndex;
+  const source = sources[normalizedSourceIndex];
+  const currentRole = getAiPresetInfoSourceMessageRole(source.id);
+  const currentIndex = Math.max(0, roleOptions.indexOf(currentRole));
+  const nextIndex = (currentIndex + step + roleOptions.length) % roleOptions.length;
+  pendingAiPresetInfoSourceRoleMap = {
+    ...(pendingAiPresetInfoSourceRoleMap || {}),
+    [source.id]: roleOptions[nextIndex]
+  };
+  if (pendingAiPresetBlockDraft && String(pendingAiPresetBlockDraft?.sourceId || '').trim() === String(source.id || '').trim()) {
+    pendingAiPresetBlockDraft = getAiPresetInfoPickerDraft({
+      ...pendingAiPresetBlockDraft,
+      messageRole: roleOptions[nextIndex]
+    }, editingAiPresetBlockIndex >= 0 ? editingAiPresetBlockIndex : pendingAiPresetBlocks.length);
+  }
+  if (isAiPresetWorkspaceActive() && settingsView === 'aiPromptInfoSourcePicker') {
+    renderActiveAiPresetWorkspace();
+  }
 }
 
 function confirmAiPresetWorldBookSelection() {
@@ -1657,7 +1904,11 @@ function cycleAiPresetDraftRole(step = 1) {
 function getAiPresetBlockDisplayName(block, index = 0) {
   const role = String(block?.role || '').trim();
   if (role === '_context') return '主聊天';
-  if (role === '_info') return String(block?.sourceName || '').trim() || '信息';
+  if (role === '_info') {
+    const sourceId = String(block?.sourceId || '').trim();
+    const matchedSource = getAiPresetInfoSources().find((source) => String(source?.id || '').trim() === sourceId);
+    return String(matchedSource?.name || block?.sourceName || '').trim() || '信息';
+  }
   if (role === '_worldinfo') return String(block?.sourceName || '').trim() || '世界书';
   if (block?.name) return block.name;
   return `消息块 ${index + 1}`;
@@ -1668,6 +1919,7 @@ function getAiPresetBlockSubtitle(block) {
   if (role === 'system') return 'system';
   if (role === 'assistant') return 'assistant';
   if (role === 'user') return 'user';
+  if (role === '_info') return getAiPresetInfoMessageRoleLabel(block);
   return '';
 }
 
@@ -1916,10 +2168,16 @@ function renderAiPresetInfoSourcePickerContent() {
     <div class="screensaver-saved-list ai-preset-picker-list" id="ai-preset-info-source-list">
       ${sources.map((source, index) => `
         <div class="screensaver-saved-item ai-preset-picker-item ${selectedAiPresetInfoSourceIndex === index ? 'is-selected' : ''}" data-ai-preset-info-source-index="${index}">
-          <div class="screensaver-saved-main">
+          <div class="screensaver-saved-main ai-preset-picker-main">
             <span class="screensaver-saved-name">${escapeHtml(source.name)}</span>
             <span class="screensaver-saved-url">${escapeHtml(source.subtitle)}</span>
           </div>
+          <button class="ai-preset-info-role-button" type="button" data-ai-preset-info-role-index="${index}">
+            <span class="setting-row-value-wrap">
+              <span class="setting-row-value">${escapeHtml(getAiPresetInfoMessageRoleLabel({ messageRole: getAiPresetInfoSourceMessageRole(source.id) }))}</span>
+              <span class="setting-row-arrow">⇆</span>
+            </span>
+          </button>
         </div>
       `).join('')}
     </div>
@@ -2046,7 +2304,7 @@ async function openAiPresetPreviewWithBlock(targetBlock, title = '', returnView 
       aiPresetPreviewStatus = contextMessages.length ? `共 ${contextMessages.length} 条` : '暂无内容';
     } else if (role === '_info') {
       aiPresetPreviewText = getAiPresetInfoSlotText(targetBlock, getCurrentAiContact()) || '暂无内容';
-      aiPresetPreviewStatus = aiPresetPreviewText ? '已展开信息槽内容' : '暂无内容';
+      aiPresetPreviewStatus = aiPresetPreviewText ? `已展开信息槽内容 · ${getAiPresetInfoMessageRoleLabel(targetBlock)}` : '暂无内容';
     } else if (role === '_worldinfo') {
       aiPresetPreviewText = await getAiPresetWorldInfoSlotText(targetBlock) || '暂无内容';
       aiPresetPreviewStatus = aiPresetPreviewText ? '已展开世界书内容' : '暂无内容';
@@ -2119,9 +2377,7 @@ async function openAiPresetInfoSourcePreview() {
     role: '_info',
     sourceId: source.id,
     sourceName: source.name,
-    sourceScope: isAiPresetSmsChatHistorySource(source.id)
-      ? 'sms_chat_history'
-      : (isAiPresetPendingUserMessagesSource(source.id) ? 'pending_user_messages' : '')
+    sourceScope: getAiPresetInfoSourceScope(source.id)
   }, source.name || '信息来源预览', 'aiPromptInfoSourcePicker');
 }
 
@@ -2237,7 +2493,25 @@ function getAiSmsHistoryEntries(contacts = []) {
 
 function getAiPresetInfoSlotText(block, activeContact = null, { pendingTargets = [] } = {}) {
   const sourceId = String(block?.sourceId || '').trim();
-  const sourceScope = String(block?.sourceScope || '').trim();
+  const sourceScope = getAiPresetInfoSourceScope(sourceId, block?.sourceScope);
+  if (isAiPresetMapInfoSource(sourceId, sourceScope)) {
+    return getAiPresetMapInfoSlotText();
+  }
+  if (isAiPresetItemsInfoSource(sourceId, sourceScope)) {
+    return getAiPresetItemsInfoSlotText();
+  }
+  if (isAiPresetRadioInfoSource(sourceId, sourceScope)) {
+    return getAiPresetRadioInfoSlotText();
+  }
+  if (isAiPresetCharsInfoSource(sourceId, sourceScope)) {
+    return getAiPresetCharsInfoSlotText();
+  }
+  if (isAiPresetDateTimeInfoSource(sourceId, sourceScope)) {
+    return getAiPresetDateTimeInfoSlotText();
+  }
+  if (isAiPresetWeatherInfoSource(sourceId, sourceScope)) {
+    return getAiPresetWeatherInfoSlotText();
+  }
   if (isAiPresetSmsChatHistorySource(sourceId, sourceScope)) {
     const smsHistoryEntries = getAiSmsHistoryEntries(dedupeAiContacts(aiContacts));
     return smsHistoryEntries.length ? JSON.stringify(smsHistoryEntries, null, 2) : '[]';
@@ -2301,7 +2575,7 @@ async function buildAiMessagesFromPreset(contact, userText, presetEntry, { pendi
       const content = getAiPresetInfoSlotText(block, contact, { pendingTargets });
       if (content) {
         messages.push({
-          role: isAiPresetPendingUserMessagesSource(block?.sourceId, block?.sourceScope) ? 'user' : 'system',
+          role: getAiPresetInfoMessageRole(block),
           content
         });
       }
@@ -2425,17 +2699,9 @@ async function requestAiChatReply(contact, userText, { pendingTargets = [] } = {
     stream: false
   };
   const temperature = Number(settings.temperature);
-  const frequencyPenalty = Number(settings.frequencyPenalty);
-  const presencePenalty = Number(settings.presencePenalty);
   const topP = Number(settings.topP);
   if (settings.temperature !== '' && Number.isFinite(temperature)) {
     body.temperature = temperature;
-  }
-  if (settings.frequencyPenalty !== '' && Number.isFinite(frequencyPenalty)) {
-    body.frequency_penalty = frequencyPenalty;
-  }
-  if (settings.presencePenalty !== '' && Number.isFinite(presencePenalty)) {
-    body.presence_penalty = presencePenalty;
   }
   if (settings.topP !== '' && Number.isFinite(topP)) {
     body.top_p = topP;
@@ -2613,17 +2879,9 @@ async function requestAiSmsSummaryReply(contact = null) {
     stream: false
   };
   const temperature = Number(settings.temperature);
-  const frequencyPenalty = Number(settings.frequencyPenalty);
-  const presencePenalty = Number(settings.presencePenalty);
   const topP = Number(settings.topP);
   if (settings.temperature !== '' && Number.isFinite(temperature)) {
     body.temperature = temperature;
-  }
-  if (settings.frequencyPenalty !== '' && Number.isFinite(frequencyPenalty)) {
-    body.frequency_penalty = frequencyPenalty;
-  }
-  if (settings.presencePenalty !== '' && Number.isFinite(presencePenalty)) {
-    body.presence_penalty = presencePenalty;
   }
   if (settings.topP !== '' && Number.isFinite(topP)) {
     body.top_p = topP;

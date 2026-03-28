@@ -88,6 +88,42 @@
   .ai-preset-picker-item {
     box-shadow: none;
   }
+  .ai-preset-picker-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .ai-preset-info-role-button {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--window-soft);
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+  .ai-preset-info-role-button .setting-row-value-wrap {
+    gap: 4px;
+  }
+  .ai-preset-info-role-button .setting-row-value {
+    max-width: none;
+  }
+  .ai-preset-picker-item.is-selected .ai-preset-info-role-button {
+    color: currentColor;
+  }
+  body.theme-white .ai-preset-info-role-button {
+    color: #a48b74;
+  }
+  body.theme-white .ai-preset-picker-item.is-selected .ai-preset-info-role-button {
+    color: currentColor;
+  }
   .ai-preset-message-editor {
     gap: 8px;
     flex: 1;

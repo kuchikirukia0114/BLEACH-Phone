@@ -179,8 +179,9 @@ function syncAiChatInputHeight() {
   const singleLineHeight = lineHeight + verticalPadding + borderSize;
   const maxHeight = Math.round(lineHeight * 2 + verticalPadding + borderSize);
   const targetHeight = Math.min(input.scrollHeight, maxHeight);
+  const shouldEnableScroll = input.scrollHeight > maxHeight;
   input.style.height = `${Math.max(targetHeight, singleLineHeight)}px`;
-  input.style.overflowY = 'hidden';
+  input.style.overflowY = shouldEnableScroll ? 'auto' : 'hidden';
 }
 
 function focusAiChatInput() {
@@ -191,6 +192,189 @@ function focusAiChatInput() {
     input.focus();
     input.setSelectionRange?.(input.value.length, input.value.length);
   });
+}
+
+const SMS_MEDIA_TYPES = ['photo', 'video', 'audio', 'file', 'location'];
+
+function normalizeSmsMediaTextSegment(text = '') {
+  return String(text || '').replace(/\r\n?/g, '\n').trim();
+}
+
+function normalizeSmsMediaPayload(content = '') {
+  return String(content || '').replace(/\r\n?/g, '\n').trim();
+}
+
+function parseSmsChatMessageSegments(content = '') {
+  const source = String(content || '').replace(/\r\n?/g, '\n');
+  const mediaRegex = /<(photo|video|audio|file|location)>([\s\S]*?)<\/\1>/gi;
+  const segments = [];
+  let lastIndex = 0;
+  let match = mediaRegex.exec(source);
+  while (match) {
+    const textBefore = normalizeSmsMediaTextSegment(source.slice(lastIndex, match.index));
+    if (textBefore) {
+      segments.push({ kind: 'text', content: textBefore });
+    }
+    segments.push({
+      kind: 'media',
+      mediaType: String(match[1] || '').toLowerCase(),
+      content: normalizeSmsMediaPayload(match[2])
+    });
+    lastIndex = mediaRegex.lastIndex;
+    match = mediaRegex.exec(source);
+  }
+  const trailingText = normalizeSmsMediaTextSegment(source.slice(lastIndex));
+  if (trailingText) {
+    segments.push({ kind: 'text', content: trailingText });
+  }
+  if (segments.length) {
+    return segments;
+  }
+  const normalizedSource = normalizeSmsMediaPayload(source);
+  return normalizedSource ? [{ kind: 'text', content: normalizedSource }] : [];
+}
+
+function renderSmsMediaIcon(mediaType = '') {
+  switch (String(mediaType || '').toLowerCase()) {
+    case 'photo':
+      return `
+        <svg class="media-box-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="4" width="18" height="16" rx="1" ry="1"></rect>
+          <path d="M3 16l5-5 4 4 3-3 5 5"></path>
+          <circle cx="15" cy="9" r="2"></circle>
+        </svg>
+      `;
+    case 'video':
+      return `
+        <svg class="media-box-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="6" width="14" height="12" rx="2" ry="2"></rect>
+          <polygon points="16,9 22,6 22,18 16,15"></polygon>
+        </svg>
+      `;
+    case 'audio':
+      return `
+        <svg class="media-box-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+          <line x1="8" y1="22" x2="16" y2="22"></line>
+        </svg>
+      `;
+    case 'location':
+      return `
+        <svg class="media-box-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="10" r="3"></circle>
+          <path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"></path>
+        </svg>
+      `;
+    case 'file':
+    default:
+      return `
+        <svg class="media-box-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+      `;
+  }
+}
+
+function renderSmsChatSegment(segment) {
+  if (!segment || typeof segment !== 'object') {
+    return '';
+  }
+  if (segment.kind === 'media') {
+    return `
+      <button
+        class="contact-chat-media-box"
+        type="button"
+        data-sms-media-trigger="true"
+        data-sms-media-type="${escapeHtml(segment.mediaType)}"
+        data-sms-media-content="${escapeHtml(segment.content)}"
+      >
+        ${renderSmsMediaIcon(segment.mediaType)}
+      </button>
+    `;
+  }
+  return `<span class="contact-chat-text">${escapeHtml(segment.content)}</span>`;
+}
+
+function getSmsMediaModalLightClass(mediaType = '') {
+  switch (String(mediaType || '').toLowerCase()) {
+    case 'photo':
+      return 'light-pink';
+    case 'file':
+      return 'light-blue';
+    case 'video':
+      return 'light-green';
+    case 'location':
+      return 'light-orange';
+    case 'audio':
+      return 'light-red';
+    default:
+      return 'light-blue';
+  }
+}
+
+function resetSmsMediaModalState() {
+  smsMediaModalVisible = false;
+  smsMediaModalType = '';
+  smsMediaModalContent = '';
+}
+
+function isSmsMediaModalOpen() {
+  return Boolean(smsMediaModalVisible && contactView === 'chat');
+}
+
+function openSmsMediaModal(mediaType = '', content = '') {
+  const normalizedMediaType = String(mediaType || '').trim().toLowerCase();
+  const normalizedType = SMS_MEDIA_TYPES.includes(normalizedMediaType)
+    ? normalizedMediaType
+    : 'file';
+  smsMediaModalVisible = true;
+  smsMediaModalType = normalizedType;
+  smsMediaModalContent = normalizeSmsMediaPayload(content);
+  renderActiveAiAppWindow();
+  return true;
+}
+
+function closeSmsMediaModal({ render = true } = {}) {
+  if (!smsMediaModalVisible && !smsMediaModalType && !smsMediaModalContent) {
+    return false;
+  }
+  resetSmsMediaModalState();
+  if (render) {
+    renderActiveAiAppWindow();
+  }
+  return true;
+}
+
+function renderSmsMediaModal() {
+  if (!isSmsMediaModalOpen()) {
+    return '';
+  }
+  const lightClassName = getSmsMediaModalLightClass(smsMediaModalType);
+  return `
+    <div class="sms-media-modal">
+      <div class="sms-media-modal-overlay" data-sms-media-modal-overlay="true"></div>
+      <div class="modal-style-device" data-sms-media-modal-content="true">
+        <div class="sms-media-modal-topbar">
+          <div class="retro-status-light ${lightClassName}"></div>
+          <button class="retro-close-btn" type="button" data-sms-media-modal-close="true">
+            <svg class="retro-close-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+              <line x1="3" y1="3" x2="13" y2="13"></line>
+              <line x1="13" y1="3" x2="3" y2="13"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="sms-media-modal-screen">
+          <div class="sms-media-modal-body">${escapeHtml(smsMediaModalContent)}</div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderActiveAiAppWindow() {
@@ -376,6 +560,7 @@ function bindSmsSummaryPresetSelection() {
 }
 
 function openAiContactList() {
+  closeSmsMediaModal({ render: false });
   contactView = 'list';
   aiChatErrorMessage = '';
   selectedAiContactIndex = aiContacts.length ? Math.min(Math.max(selectedAiContactIndex, 0), aiContacts.length - 1) : -1;
@@ -469,6 +654,7 @@ function deleteAiContact(index) {
 // ===== 短信：聊天会话与发送 =====
 function openAiContactChat(index = selectedAiContactIndex) {
   if (index < 0 || index >= aiContacts.length) return;
+  closeSmsMediaModal({ render: false });
   currentAiContactIndex = index;
   selectedAiContactIndex = index;
   contactView = 'chat';
@@ -793,9 +979,13 @@ function renderSmsChatMessages() {
   const summarizedMessageIds = new Set((contact ? getAiSummarizedContactHistory(contact.id) : []).map((message) => String(message?.id || '').trim()).filter(Boolean));
   const historyHtml = history.map((message) => {
     const isSummarized = summarizedMessageIds.has(String(message?.id || '').trim());
+    const messageSegments = parseSmsChatMessageSegments(message.content);
+    const bubbleBody = messageSegments.length
+      ? messageSegments.map((segment) => renderSmsChatSegment(segment)).join('')
+      : `<span class="contact-chat-text">${escapeHtml(message.content)}</span>`;
     return `
       <div class="contact-chat-row ${message.role === 'user' ? 'is-user' : 'is-assistant'}">
-        <div class="contact-chat-bubble ${selectedAiChatMessageIds.includes(message.id) ? 'is-selected' : ''}${isSummarized ? ' is-summarized' : ''}" data-ai-chat-message-id="${escapeHtml(message.id)}"><span class="contact-chat-text">${escapeHtml(message.content)}</span></div>
+        <div class="contact-chat-bubble ${selectedAiChatMessageIds.includes(message.id) ? 'is-selected' : ''}${isSummarized ? ' is-summarized' : ''}" data-ai-chat-message-id="${escapeHtml(message.id)}">${bubbleBody}</div>
       </div>
     `;
   }).join('');
@@ -838,6 +1028,7 @@ function renderSmsChatView() {
       ${renderSmsChatMessages()}
       ${renderSmsChatComposer()}
     </div>
+    ${renderSmsMediaModal()}
   `;
 }
 

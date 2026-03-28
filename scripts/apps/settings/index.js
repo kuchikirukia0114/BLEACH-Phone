@@ -404,6 +404,14 @@ function moveSettingsSelection(direction) {
       renderAppWindow('settings');
       return;
     }
+    if (direction === 'left') {
+      cycleAiPresetInfoMessageRole(-1, selectedAiPresetInfoSourceIndex);
+      return;
+    }
+    if (direction === 'right') {
+      cycleAiPresetInfoMessageRole(1, selectedAiPresetInfoSourceIndex);
+      return;
+    }
     return;
   }
 
@@ -615,9 +623,8 @@ function renderSettingsContent() {
   if (settingsView === 'aiParamConfig') {
     return `
       <div class="settings-editor">
+        <div class="app-subline">仅支持 Temperature / Top P</div>
         <input class="settings-editor-field" id="ai-params-temperature-input" type="number" min="0" max="2" step="0.1" inputmode="decimal" spellcheck="false" value="${escapeHtml(pendingAiTemperature)}" placeholder="温度 0-2">
-        <input class="settings-editor-field" id="ai-params-frequency-penalty-input" type="number" min="-2" max="2" step="0.1" inputmode="decimal" spellcheck="false" value="${escapeHtml(pendingAiFrequencyPenalty)}" placeholder="频率惩罚 -2~2">
-        <input class="settings-editor-field" id="ai-params-presence-penalty-input" type="number" min="-2" max="2" step="0.1" inputmode="decimal" spellcheck="false" value="${escapeHtml(pendingAiPresencePenalty)}" placeholder="存在惩罚 -2~2">
         <input class="settings-editor-field" id="ai-params-top-p-input" type="number" min="0" max="1" step="0.1" inputmode="decimal" spellcheck="false" value="${escapeHtml(pendingAiTopP)}" placeholder="Top P 0-1">
       </div>
     `;

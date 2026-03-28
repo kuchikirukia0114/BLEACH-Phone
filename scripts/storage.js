@@ -365,14 +365,24 @@ function normalizeAiPresetBlock(block, index = 0) {
   const role = ['system', 'user', 'assistant', '_context', '_info', '_worldinfo'].includes(normalizedRole)
     ? normalizedRole
     : 'system';
+  const sourceId = typeof block?.sourceId === 'string' ? block.sourceId.trim().slice(0, 80) : '';
+  const sourceName = typeof block?.sourceName === 'string' ? block.sourceName.trim().slice(0, 48) : '';
+  const sourceScope = typeof block?.sourceScope === 'string' ? block.sourceScope.trim().slice(0, 24) : '';
+  const explicitMessageRole = typeof block?.messageRole === 'string' ? block.messageRole.trim() : '';
+  const messageRole = ['system', 'user', 'assistant'].includes(explicitMessageRole)
+    ? explicitMessageRole
+    : (role === '_info'
+      ? ((sourceId === '__pending_user_messages__' || sourceScope === 'pending_user_messages') ? 'user' : 'system')
+      : '');
   return {
     id: typeof block?.id === 'string' && block.id.trim() ? block.id.trim() : `ai_preset_block_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
     role,
+    messageRole,
     name: typeof block?.name === 'string' ? block.name.trim().slice(0, 32) : '',
     text: role.startsWith('_') ? '' : String(block?.text || ''),
-    sourceId: typeof block?.sourceId === 'string' ? block.sourceId.trim().slice(0, 80) : '',
-    sourceName: typeof block?.sourceName === 'string' ? block.sourceName.trim().slice(0, 48) : '',
-    sourceScope: typeof block?.sourceScope === 'string' ? block.sourceScope.trim().slice(0, 24) : ''
+    sourceId,
+    sourceName,
+    sourceScope
   };
 }
 
@@ -474,8 +484,6 @@ function normalizeAiApiProfile(profile, index = 0) {
     key: typeof nextProfile.key === 'string' ? nextProfile.key.trim() : '',
     model: typeof nextProfile.model === 'string' ? nextProfile.model.trim() : '',
     temperature: clampAiNumberSetting(nextProfile.temperature, 0, 2),
-    frequencyPenalty: clampAiNumberSetting(nextProfile.frequencyPenalty, -2, 2),
-    presencePenalty: clampAiNumberSetting(nextProfile.presencePenalty, -2, 2),
     topP: clampAiNumberSetting(nextProfile.topP, 0, 1),
     modelCache: normalizeAiModelCache(nextProfile.modelCache)
   };
@@ -505,8 +513,6 @@ function normalizeAiApiProfiles(profiles, legacySettings = {}) {
     key: legacySettings.key,
     model: legacySettings.model,
     temperature: legacySettings.temperature,
-    frequencyPenalty: legacySettings.frequencyPenalty,
-    presencePenalty: legacySettings.presencePenalty,
     topP: legacySettings.topP,
     modelCache: legacySettings.modelCache
   }, 0);
@@ -582,8 +588,6 @@ function getAiRuntimeSettings(bindingKey = 'default', settingsSource = aiSetting
     key: profile?.key || '',
     model: profile?.model || '',
     temperature: profile?.temperature || '',
-    frequencyPenalty: profile?.frequencyPenalty || '',
-    presencePenalty: profile?.presencePenalty || '',
     topP: profile?.topP || '',
     modelCache: normalizeAiModelCache(profile?.modelCache)
   };
@@ -605,7 +609,37 @@ function normalizeAiSettings(settings) {
   const selectedPresetId = resolveSelectedAiPresetId(nextSettings.selectedPresetId, presetEntries);
   const selectedSmsPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsPresetId || selectedPresetId, presetEntries);
   const selectedSmsSummaryPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsSummaryPresetId || selectedSmsPresetId || selectedPresetId, presetEntries);
+  const selectedMapPresetId = resolveSelectedAiPresetId(nextSettings.selectedMapPresetId || selectedPresetId, presetEntries);
+  const selectedWeatherPresetId = resolveSelectedAiPresetId(nextSettings.selectedWeatherPresetId || selectedPresetId, presetEntries);
+  const selectedItemsPresetId = resolveSelectedAiPresetId(nextSettings.selectedItemsPresetId || selectedPresetId, presetEntries);
+  const selectedRadioPresetId = resolveSelectedAiPresetId(nextSettings.selectedRadioPresetId || selectedPresetId, presetEntries);
+  const selectedCharsPresetId = resolveSelectedAiPresetId(nextSettings.selectedCharsPresetId || selectedPresetId, presetEntries);
   const selectedPreset = getAiPresetEntryById(selectedPresetId, { presetEntries }) || null;
+  const mapAutoGenerateEnabled = Boolean(nextSettings.mapAutoGenerateEnabled);
+  const mapAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.mapAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.mapAutoGenerateTrigger).trim()
+    : 'assistant';
+  const mapAutoGenerateInterval = clampAiIntegerSetting(nextSettings.mapAutoGenerateInterval, 1, 99, '1');
+  const weatherAutoGenerateEnabled = Boolean(nextSettings.weatherAutoGenerateEnabled);
+  const weatherAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.weatherAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.weatherAutoGenerateTrigger).trim()
+    : 'assistant';
+  const weatherAutoGenerateInterval = clampAiIntegerSetting(nextSettings.weatherAutoGenerateInterval, 1, 99, '1');
+  const itemsAutoGenerateEnabled = Boolean(nextSettings.itemsAutoGenerateEnabled);
+  const itemsAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.itemsAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.itemsAutoGenerateTrigger).trim()
+    : 'assistant';
+  const itemsAutoGenerateInterval = clampAiIntegerSetting(nextSettings.itemsAutoGenerateInterval, 1, 99, '1');
+  const radioAutoGenerateEnabled = Boolean(nextSettings.radioAutoGenerateEnabled);
+  const radioAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.radioAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.radioAutoGenerateTrigger).trim()
+    : 'assistant';
+  const radioAutoGenerateInterval = clampAiIntegerSetting(nextSettings.radioAutoGenerateInterval, 1, 99, '1');
+  const charsAutoGenerateEnabled = Boolean(nextSettings.charsAutoGenerateEnabled);
+  const charsAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.charsAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.charsAutoGenerateTrigger).trim()
+    : 'assistant';
+  const charsAutoGenerateInterval = clampAiIntegerSetting(nextSettings.charsAutoGenerateInterval, 1, 99, '1');
 
   return {
     apiProfiles,
@@ -614,13 +648,31 @@ function normalizeAiSettings(settings) {
     selectedPresetId,
     selectedSmsPresetId,
     selectedSmsSummaryPresetId,
+    selectedMapPresetId,
+    selectedWeatherPresetId,
+    selectedItemsPresetId,
+    selectedRadioPresetId,
+    selectedCharsPresetId,
+    mapAutoGenerateEnabled,
+    mapAutoGenerateTrigger,
+    mapAutoGenerateInterval,
+    weatherAutoGenerateEnabled,
+    weatherAutoGenerateTrigger,
+    weatherAutoGenerateInterval,
+    itemsAutoGenerateEnabled,
+    itemsAutoGenerateTrigger,
+    itemsAutoGenerateInterval,
+    radioAutoGenerateEnabled,
+    radioAutoGenerateTrigger,
+    radioAutoGenerateInterval,
+    charsAutoGenerateEnabled,
+    charsAutoGenerateTrigger,
+    charsAutoGenerateInterval,
     presetEntries,
     url: selectedApiProfile?.url || '',
     key: selectedApiProfile?.key || '',
     model: selectedApiProfile?.model || '',
     temperature: selectedApiProfile?.temperature || '',
-    frequencyPenalty: selectedApiProfile?.frequencyPenalty || '',
-    presencePenalty: selectedApiProfile?.presencePenalty || '',
     topP: selectedApiProfile?.topP || '',
     mainChatContextN: nextSettings.mainChatContextN === '' || nextSettings.mainChatContextN == null
       ? ''
@@ -671,8 +723,6 @@ function buildPendingAiApiProfile(currentSettings = aiSettings, overrides = {}) 
     key: overrides.key ?? pendingAiKey,
     model: overrides.model ?? pendingAiModel,
     temperature: overrides.temperature ?? pendingAiTemperature,
-    frequencyPenalty: overrides.frequencyPenalty ?? pendingAiFrequencyPenalty,
-    presencePenalty: overrides.presencePenalty ?? pendingAiPresencePenalty,
     topP: overrides.topP ?? pendingAiTopP,
     modelCache: overrides.modelCache ?? currentProfile?.modelCache ?? []
   }, Array.isArray(settings.apiProfiles) ? settings.apiProfiles.length : 0);
@@ -707,6 +757,26 @@ function saveAiSettings(overrides = {}) {
     selectedPresetId: overrides.selectedPresetId ?? currentAiPresetId,
     selectedSmsPresetId: overrides.selectedSmsPresetId ?? currentSmsPresetId ?? currentSettings.selectedSmsPresetId,
     selectedSmsSummaryPresetId: overrides.selectedSmsSummaryPresetId ?? currentSmsSummaryPresetId ?? currentSettings.selectedSmsSummaryPresetId,
+    selectedMapPresetId: overrides.selectedMapPresetId ?? currentMapPresetId ?? currentSettings.selectedMapPresetId,
+    selectedWeatherPresetId: overrides.selectedWeatherPresetId ?? currentWeatherPresetId ?? currentSettings.selectedWeatherPresetId,
+    selectedItemsPresetId: overrides.selectedItemsPresetId ?? currentItemsPresetId ?? currentSettings.selectedItemsPresetId,
+    selectedRadioPresetId: overrides.selectedRadioPresetId ?? currentRadioPresetId ?? currentSettings.selectedRadioPresetId,
+    selectedCharsPresetId: overrides.selectedCharsPresetId ?? currentCharsPresetId ?? currentSettings.selectedCharsPresetId,
+    mapAutoGenerateEnabled: overrides.mapAutoGenerateEnabled ?? currentSettings.mapAutoGenerateEnabled,
+    mapAutoGenerateTrigger: overrides.mapAutoGenerateTrigger ?? currentSettings.mapAutoGenerateTrigger,
+    mapAutoGenerateInterval: overrides.mapAutoGenerateInterval ?? currentSettings.mapAutoGenerateInterval,
+    weatherAutoGenerateEnabled: overrides.weatherAutoGenerateEnabled ?? currentSettings.weatherAutoGenerateEnabled,
+    weatherAutoGenerateTrigger: overrides.weatherAutoGenerateTrigger ?? currentSettings.weatherAutoGenerateTrigger,
+    weatherAutoGenerateInterval: overrides.weatherAutoGenerateInterval ?? currentSettings.weatherAutoGenerateInterval,
+    itemsAutoGenerateEnabled: overrides.itemsAutoGenerateEnabled ?? currentSettings.itemsAutoGenerateEnabled,
+    itemsAutoGenerateTrigger: overrides.itemsAutoGenerateTrigger ?? currentSettings.itemsAutoGenerateTrigger,
+    itemsAutoGenerateInterval: overrides.itemsAutoGenerateInterval ?? currentSettings.itemsAutoGenerateInterval,
+    radioAutoGenerateEnabled: overrides.radioAutoGenerateEnabled ?? currentSettings.radioAutoGenerateEnabled,
+    radioAutoGenerateTrigger: overrides.radioAutoGenerateTrigger ?? currentSettings.radioAutoGenerateTrigger,
+    radioAutoGenerateInterval: overrides.radioAutoGenerateInterval ?? currentSettings.radioAutoGenerateInterval,
+    charsAutoGenerateEnabled: overrides.charsAutoGenerateEnabled ?? currentSettings.charsAutoGenerateEnabled,
+    charsAutoGenerateTrigger: overrides.charsAutoGenerateTrigger ?? currentSettings.charsAutoGenerateTrigger,
+    charsAutoGenerateInterval: overrides.charsAutoGenerateInterval ?? currentSettings.charsAutoGenerateInterval,
     presetEntries: overrides.presetEntries ?? pendingAiPresetEntries,
     mainChatContextN: pendingAiMainChatContextN,
     mainChatUserN: pendingAiMainChatUserN,
@@ -729,8 +799,6 @@ function setPendingAiSettings(settings = aiSettings) {
   pendingAiKey = selectedProfile?.key || '';
   pendingAiModel = selectedProfile?.model || '';
   pendingAiTemperature = selectedProfile?.temperature || '';
-  pendingAiFrequencyPenalty = selectedProfile?.frequencyPenalty || '';
-  pendingAiPresencePenalty = selectedProfile?.presencePenalty || '';
   pendingAiTopP = selectedProfile?.topP || '';
   pendingAiMainChatContextN = nextSettings.mainChatContextN;
   pendingAiMainChatUserN = nextSettings.mainChatUserN;
@@ -740,6 +808,11 @@ function setPendingAiSettings(settings = aiSettings) {
   currentAiPresetId = resolveSelectedAiPresetId(nextSettings.selectedPresetId, pendingAiPresetEntries);
   currentSmsPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsPresetId || currentAiPresetId, pendingAiPresetEntries);
   currentSmsSummaryPresetId = resolveSelectedAiPresetId(nextSettings.selectedSmsSummaryPresetId || currentSmsPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentMapPresetId = resolveSelectedAiPresetId(nextSettings.selectedMapPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentWeatherPresetId = resolveSelectedAiPresetId(nextSettings.selectedWeatherPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentItemsPresetId = resolveSelectedAiPresetId(nextSettings.selectedItemsPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentRadioPresetId = resolveSelectedAiPresetId(nextSettings.selectedRadioPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentCharsPresetId = resolveSelectedAiPresetId(nextSettings.selectedCharsPresetId || currentAiPresetId, pendingAiPresetEntries);
   pendingAiPresetName = getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.name || '';
   pendingAiPresetBlocks = normalizeAiPresetBlocks(getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.blocks || nextSettings.presetBlocks);
   selectedAiPresetListIndex = pendingAiPresetEntries.length

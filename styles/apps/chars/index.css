@@ -1,0 +1,206 @@
+.app-window.chars-hudless .app-footer {
+  display: none;
+}
+
+.app-window.chars-hudless .app-body {
+  padding: 0;
+  gap: 0;
+}
+
+.chars-app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+
+.chars-app-shell .items-status-banner {
+  margin: 10px 10px 0;
+  flex: 0 0 auto;
+}
+
+.chars-app-shell .content-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: auto;
+  min-height: 0;
+}
+
+.chars-app-shell .content-area::-webkit-scrollbar {
+  display: none;
+}
+
+.chars-app-shell .content-area {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.chars-app-shell .char-card {
+  background-color: var(--window-footer-bg);
+  border: 2px solid var(--window-box-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  box-shadow: 2px 2px 0 var(--window-box-border);
+  transform: translate(-2px, -2px);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chars-app-shell .char-card:active {
+  box-shadow: 0 0 0 var(--window-box-border);
+  transform: translate(0, 0);
+}
+
+.chars-app-shell .char-card.active {
+  background-color: transparent;
+  border-color: var(--window-box-border);
+  box-shadow: 0 0 0 transparent;
+  transform: translate(0, 0);
+}
+
+.chars-app-shell .char-card.is-selected:not(.active) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.chars-app-shell .char-name {
+  font-size: calc(14px * var(--ui-font-scale));
+  font-weight: bold;
+  color: var(--window-text);
+  margin-bottom: 0;
+  padding: 2px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.chars-app-shell .toggle-icon {
+  font-size: calc(14px * var(--ui-font-scale));
+  color: var(--window-soft);
+  font-weight: bold;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: inline-block;
+}
+
+.chars-app-shell .char-card.active .char-name {
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.chars-app-shell .char-card.active .toggle-icon {
+  color: var(--accent);
+  transform: rotate(45deg) scale(1.1);
+}
+
+.chars-app-shell .char-details {
+  display: none;
+  padding-top: 6px;
+  animation: chars-char-fade-in 0.2s ease-in-out;
+}
+
+.chars-app-shell .char-card.active .char-details {
+  display: block;
+}
+
+.chars-app-shell .info-row {
+  font-size: calc(11px * var(--ui-font-scale));
+  line-height: 1.4;
+  color: var(--window-text);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.chars-app-shell .label {
+  font-weight: bold;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.chars-app-shell .detail-row {
+  margin-top: 3px;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 3px;
+  border-radius: 4px;
+  color: var(--window-text);
+  border: 1px solid var(--window-footer-border);
+}
+
+body.theme-white .chars-app-shell .info-row:nth-child(1) .label {
+  color: #e0a96d;
+}
+
+body.theme-white .chars-app-shell .info-row:nth-child(2) .label {
+  color: #6d9eeb;
+}
+
+body.theme-white .chars-app-shell .info-row:nth-child(3) .label {
+  color: #e06d6d;
+}
+
+body.theme-white .chars-app-shell .text {
+  flex-grow: 1;
+  opacity: 0.9;
+  color: #4a3e35;
+}
+
+body.theme-white .chars-app-shell .char-card.is-selected:not(.active) {
+  background-color: #fff0ee;
+}
+
+body.theme-black .chars-app-shell .char-name,
+body.theme-black .chars-app-shell .toggle-icon {
+  color: #c94f4f;
+}
+
+body.theme-black .chars-app-shell .char-card.active .char-name,
+body.theme-black .chars-app-shell .char-card.active .toggle-icon {
+  color: #4b7fd8;
+}
+
+body.theme-black .chars-app-shell .char-card.is-selected:not(.active) {
+  background-color: var(--window-footer-bg);
+}
+
+body.theme-black .chars-app-shell .info-row:nth-child(1) .label {
+  color: #d4b483;
+}
+
+body.theme-black .chars-app-shell .info-row:nth-child(2) .label {
+  color: #8ab6d6;
+}
+
+body.theme-black .chars-app-shell .info-row:nth-child(3) .label {
+  color: #d68a8a;
+}
+
+body.theme-black .chars-app-shell .text {
+  flex-grow: 1;
+  opacity: 0.9;
+  color: #d4d4d0;
+}
+
+body.theme-black .chars-app-shell .detail-row {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  margin-top: 2px;
+}
+
+@keyframes chars-char-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

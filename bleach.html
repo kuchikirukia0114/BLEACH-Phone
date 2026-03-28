@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
@@ -13,10 +13,15 @@
 <link rel="stylesheet" href="./styles/apps/radio/index.css">
 <link rel="stylesheet" href="./styles/apps/network/index.css">
 <link rel="stylesheet" href="./styles/apps/music/index.css">
+<link rel="stylesheet" href="./styles/apps/items/index.css">
+<link rel="stylesheet" href="./styles/apps/chars/index.css">
 <link rel="stylesheet" href="./styles/apps/data/index.css">
 <link rel="stylesheet" href="./styles/apps/contact/index.css">
 <link rel="stylesheet" href="./styles/apps/settings/index.css">
 <link rel="stylesheet" href="./styles/apps/ai/index.css">
+<link rel="stylesheet" href="./styles/apps/map/index.css">
+<link rel="stylesheet" href="./styles/apps/weather/index.css">
+
 <link rel="stylesheet" href="./styles/apps/screensaver/index.css">
 </head>
 <body class="theme-white">
@@ -80,7 +85,7 @@
                   </div>
                   <span>天气</span>
                 </div>
-                <div class="grid-item" data-app="intel" data-title="情报">
+                <div class="grid-item" data-app="chars" data-title="情报">
                   <div class="icon">
                     <!-- 新闻：类似死神令/文件 -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -136,25 +141,6 @@
                     </svg>
                   </div>
                   <span>道具</span>
-                </div>
-                <div class="grid-item" data-app="shinigami" data-title="死神">
-                  <div class="icon">
-                    <!-- 个人信息：大骷髅 -->
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <!-- 骷髅外轮廓 -->
-                      <path d="M12 2C7 2 3 6 3 11v4c0 1.7 1.3 3 3 3h1l1 3h8l1-3h1c1.7 0 3-1.3 3-3v-4C21 6 17 2 12 2z"></path>
-                      <!-- 空洞的大眼睛 -->
-                      <circle cx="8" cy="11" r="2.5"></circle>
-                      <circle cx="16" cy="11" r="2.5"></circle>
-                      <!-- 鼻子 -->
-                      <path d="M12 14l-1 2h2z"></path>
-                      <!-- 牙齿缝隙 -->
-                      <line x1="9" y1="19" x2="9" y2="21"></line>
-                      <line x1="12" y1="19" x2="12" y2="21"></line>
-                      <line x1="15" y1="19" x2="15" y2="21"></line>
-                    </svg>
-                  </div>
-                  <span>死神</span>
                 </div>
                 <div class="grid-item" data-app="records" data-title="影音">
                   <div class="icon">
@@ -304,13 +290,19 @@
 
   <script src="./scripts/state.js"></script>
   <script src="./scripts/storage.js"></script>
+  <script src="./scripts/apps/shared/index.js"></script>
   <script src="./scripts/apps/network/index.js"></script>
   <script src="./scripts/apps/music/index.js"></script>
+  <script src="./scripts/apps/items/index.js"></script>
+  <script src="./scripts/apps/chars/index.js"></script>
   <script src="./scripts/apps/radio/index.js"></script>
   <script src="./scripts/apps/ai/index.js"></script>
   <script src="./scripts/apps/settings/index.js"></script>
   <script src="./scripts/apps/contact/index.js"></script>
   <script src="./scripts/apps/data/index.js"></script>
+  <script src="./scripts/apps/map/index.js"></script>
+  <script src="./scripts/apps/weather/weather-data.js"></script>
+  <script src="./scripts/apps/weather/index.js"></script>
   <script src="./scripts/main.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-﻿function shouldStatusBarContactNameMarquee(text) {
+function shouldStatusBarContactNameMarquee(text) {
   return String(text || '').trim().length > 7;
 }
 
@@ -13,6 +13,31 @@ function buildStatusBarContactNameMarkup(text) {
 function updateRealtimeStatusBar(timeText) {
   const realtimeEl = document.getElementById('realtime');
   if (!realtimeEl) return;
+
+  const isMapView = currentAppKey === 'map'
+    && typeof getMapCurrentRangeLabel === 'function'
+    && (typeof isMapPrimaryView !== 'function' || isMapPrimaryView());
+  if (isMapView) {
+    const rangeLabel = String(getMapCurrentRangeLabel() || timeText).trim() || timeText;
+    const nextClassName = 'time is-map-range is-actionable';
+    if (
+      realtimeEl.dataset.mode === 'map-range'
+      && realtimeEl.dataset.label === rangeLabel
+      && realtimeEl.className === nextClassName
+    ) {
+      return;
+    }
+    realtimeEl.className = nextClassName;
+    realtimeEl.textContent = rangeLabel;
+    realtimeEl.dataset.mode = 'map-range';
+    realtimeEl.dataset.label = rangeLabel;
+    realtimeEl.dataset.waiting = '0';
+    realtimeEl.dataset.summarizing = '0';
+    realtimeEl.dataset.actionable = '1';
+    realtimeEl.title = '点击切换量程';
+    return;
+  }
+
   const isSmsChatView = currentAppKey === 'sms' && contactView === 'chat';
   if (!isSmsChatView) {
     if (realtimeEl.dataset.mode !== 'time' || realtimeEl.textContent !== timeText) {
@@ -61,6 +86,270 @@ function formatDateTimeLabel(value = Date.now()) {
   const hours = String(safeDate.getHours()).padStart(2, '0');
   const minutes = String(safeDate.getMinutes()).padStart(2, '0');
   return `${year}.${month}.${day} ${hours}:${minutes}`;
+}
+
+const BLEACH_PHONE_DATETIME_VARIABLE_KEY = 'bleach_phone_datetime';
+let isBleachPhoneDateTimeVariableEventsBound = false;
+
+function getPhoneDisplayCustomTimeValue() {
+  return phoneDisplayTime instanceof Date && !Number.isNaN(phoneDisplayTime.getTime())
+    ? new Date(phoneDisplayTime.getTime())
+    : null;
+}
+
+function parsePhoneDisplayDateParts(dateText = '') {
+  const normalizedText = String(dateText || '').trim();
+  if (!normalizedText) return null;
+  const sanitizedText = normalizedText.replace(/[年月]/g, '-').replace(/[日号]/g, '');
+  const match = sanitizedText.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!match) return null;
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
+function parsePhoneDisplayTimeParts(timeText = '') {
+  const normalizedText = String(timeText || '').trim().replace(/：/g, ':');
+  if (!normalizedText) return null;
+  const match = normalizedText.match(/(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}))?/);
+  if (!match) return null;
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  const seconds = Number.parseInt(match[3] || '0', 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) return null;
+  return { hours, minutes, seconds };
+}
+
+function buildPhoneDisplayDateFromDateTimeParts(dateText = '', timeText = '') {
+  const dateParts = parsePhoneDisplayDateParts(dateText);
+  const timeParts = parsePhoneDisplayTimeParts(timeText);
+  if (!dateParts && !timeParts) return null;
+  const nextDate = new Date();
+  if (dateParts) {
+    nextDate.setFullYear(dateParts.year, dateParts.month - 1, dateParts.day);
+  }
+  if (timeParts) {
+    nextDate.setHours(timeParts.hours, timeParts.minutes, timeParts.seconds, 0);
+  } else {
+    nextDate.setHours(0, 0, 0, 0);
+  }
+  return nextDate;
+}
+
+function parseBleachPhoneDateTimeVariableValue(rawValue) {
+  if (rawValue == null || String(rawValue).trim() === '') {
+    return {
+      source: 'system',
+      date: '',
+      time: '',
+      sourceDate: null,
+      isCustom: false
+    };
+  }
+
+  let payload = rawValue;
+  if (typeof rawValue === 'string') {
+    const trimmedValue = rawValue.trim();
+    try {
+      payload = JSON.parse(trimmedValue);
+    } catch (error) {
+      const parsedDate = new Date(trimmedValue);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const formatted = formatPhoneDisplayTime(parsedDate);
+        payload = {
+          date: formatted.dateStr,
+          time: formatted.timeStr,
+          source: 'custom'
+        };
+      } else {
+        const [rawDate = '', rawTime = ''] = trimmedValue.split(/\s+/, 2);
+        payload = {
+          date: rawDate,
+          time: rawTime,
+          source: 'custom'
+        };
+      }
+    }
+  }
+
+  if (payload instanceof Date && !Number.isNaN(payload.getTime())) {
+    const formatted = formatPhoneDisplayTime(payload);
+    return {
+      source: 'custom',
+      date: formatted.dateStr,
+      time: formatted.timeStr,
+      sourceDate: new Date(payload.getTime()),
+      isCustom: true
+    };
+  }
+
+  if (typeof payload === 'number' && Number.isFinite(payload)) {
+    const nextDate = new Date(payload);
+    if (Number.isNaN(nextDate.getTime())) return null;
+    const formatted = formatPhoneDisplayTime(nextDate);
+    return {
+      source: 'custom',
+      date: formatted.dateStr,
+      time: formatted.timeStr,
+      sourceDate: nextDate,
+      isCustom: true
+    };
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const rawSource = String(payload.source ?? payload.time_source ?? payload.timeSource ?? '').trim().toLowerCase();
+  const rawDate = String(payload.date || '').trim();
+  const rawTime = String(payload.time || '').trim();
+  const rawDateTime = String(payload.datetime ?? payload.value ?? '').trim();
+
+  let sourceDate = null;
+  if (rawDateTime) {
+    const parsedDate = new Date(rawDateTime);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      sourceDate = parsedDate;
+    }
+  }
+  if (!sourceDate) {
+    sourceDate = buildPhoneDisplayDateFromDateTimeParts(rawDate, rawTime);
+  }
+
+  const isCustom = rawSource === 'preset'
+    || rawSource === 'custom'
+    || rawSource === 'weather'
+    || (!rawSource && Boolean(sourceDate) && Boolean(rawDate || rawTime || rawDateTime));
+  const normalizedSource = rawSource || (isCustom ? 'custom' : 'system');
+  const formatted = sourceDate ? formatPhoneDisplayTime(sourceDate) : null;
+
+  return {
+    source: normalizedSource,
+    date: rawDate || formatted?.dateStr || '',
+    time: rawTime || formatted?.timeStr || '',
+    sourceDate,
+    isCustom: isCustom && Boolean(sourceDate)
+  };
+}
+
+async function getBleachPhoneDateTimeVariableValue({ expectedChatId = '' } = {}) {
+  const stApi = typeof getSTAPI === 'function' ? getSTAPI() : null;
+  if (typeof stApi?.variables?.get !== 'function') return null;
+  const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
+  const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
+  if (!currentChatId || (expectedChatId && currentChatId !== expectedChatId)) return null;
+
+  try {
+    const result = await stApi.variables.get({ name: BLEACH_PHONE_DATETIME_VARIABLE_KEY, scope: 'local' });
+    return result?.value ?? null;
+  } catch (error) {
+    console.warn('[时间变量] 读取失败', error);
+    return null;
+  }
+}
+
+async function syncBleachPhoneDateTimeVariableValue(rawValue, { expectedChatId = '' } = {}) {
+  const stApi = typeof getSTAPI === 'function' ? getSTAPI() : null;
+  if (typeof stApi?.variables?.set !== 'function') return false;
+  const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
+  const currentChatId = typeof ctx?.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx?.chatId;
+  if (!currentChatId || (expectedChatId && currentChatId !== expectedChatId)) return false;
+
+  try {
+    const result = await stApi.variables.set({
+      name: BLEACH_PHONE_DATETIME_VARIABLE_KEY,
+      scope: 'local',
+      value: typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue || {}, null, 2)
+    });
+    return result?.ok !== false;
+  } catch (error) {
+    console.warn('[时间变量] 同步失败', error);
+    return false;
+  }
+}
+
+function buildBleachPhoneDateTimeVariablePayload(dateValue = getPhoneDisplayCustomTimeValue(), { source = '' } = {}) {
+  const customDate = dateValue instanceof Date && !Number.isNaN(dateValue.getTime())
+    ? new Date(dateValue.getTime())
+    : null;
+  const formatted = formatPhoneDisplayTime(customDate || new Date());
+  return {
+    date: formatted.dateStr,
+    time: formatted.timeStr,
+    source: String(source || (customDate ? 'custom' : 'system')).trim() || (customDate ? 'custom' : 'system')
+  };
+}
+
+async function syncBleachPhoneDateTimeRuntimeVariable({ expectedChatId = '', source = '' } = {}) {
+  const payload = buildBleachPhoneDateTimeVariablePayload(getPhoneDisplayCustomTimeValue(), { source });
+  return syncBleachPhoneDateTimeVariableValue(payload, { expectedChatId });
+}
+
+function applyBleachPhoneDateTimeParsedValue(parsedValue, { render = true } = {}) {
+  if (!parsedValue || typeof parsedValue !== 'object') return false;
+  if (parsedValue.isCustom && parsedValue.sourceDate instanceof Date && !Number.isNaN(parsedValue.sourceDate.getTime())) {
+    return setPhoneDisplayTime(parsedValue.sourceDate, { render });
+  }
+  return resetPhoneDisplayTime({ render });
+}
+
+async function loadBleachPhoneDateTimeVariableToRuntime({ render = true, clearOnMissing = true } = {}) {
+  const rawValue = await getBleachPhoneDateTimeVariableValue();
+  if (rawValue == null || String(rawValue).trim() === '') {
+    if (clearOnMissing) {
+      resetPhoneDisplayTime({ render });
+      return true;
+    }
+    return false;
+  }
+
+  const parsedValue = parseBleachPhoneDateTimeVariableValue(rawValue);
+  if (!parsedValue) {
+    if (clearOnMissing) {
+      resetPhoneDisplayTime({ render });
+      return true;
+    }
+    return false;
+  }
+
+  return applyBleachPhoneDateTimeParsedValue(parsedValue, { render });
+}
+
+async function syncPhoneDisplayTimeWithWeatherTimeMeta(timeMeta, { render = true, persist = false, expectedChatId = '', resetOnNonPreset = false } = {}) {
+  const sourceDate = timeMeta?.sourceDate instanceof Date && !Number.isNaN(timeMeta.sourceDate.getTime())
+    ? new Date(timeMeta.sourceDate.getTime())
+    : null;
+  if (timeMeta?.isPresetTime && sourceDate) {
+    setPhoneDisplayTime(sourceDate, { render });
+    if (!persist) return true;
+    return syncBleachPhoneDateTimeRuntimeVariable({ expectedChatId, source: 'preset' });
+  }
+  if (!resetOnNonPreset) return false;
+  resetPhoneDisplayTime({ render });
+  if (!persist) return true;
+  return syncBleachPhoneDateTimeRuntimeVariable({ expectedChatId, source: 'system' });
+}
+
+function bindBleachPhoneDateTimeVariableEvents() {
+  if (isBleachPhoneDateTimeVariableEventsBound) return true;
+  const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
+  if (typeof ctx?.eventSource?.on !== 'function') return false;
+
+  const handleChatChanged = async () => {
+    await loadBleachPhoneDateTimeVariableToRuntime({ render: true, clearOnMissing: true });
+  };
+
+  const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
+  ctx.eventSource.on(chatChangedEvent, handleChatChanged);
+  if (ctx?.eventTypes?.CHAT_LOADED) {
+    ctx.eventSource.on(ctx.eventTypes.CHAT_LOADED, handleChatChanged);
+  }
+  isBleachPhoneDateTimeVariableEventsBound = true;
+  return true;
 }
 
 function getPhoneDisplayTimeValue() {
@@ -150,10 +439,19 @@ function updateTime() {
       ? getScreenSaverEntryLabel(currentEntry)
       : timeStr;
   }
+  if (typeof handleWeatherTimeBucketChange === 'function') {
+    handleWeatherTimeBucketChange();
+  }
 }
 
 function handleRealtimeStatusBarClick(event) {
   event?.stopPropagation?.();
+  if (currentAppKey === 'map' && (typeof isMapPrimaryView !== 'function' || isMapPrimaryView())) {
+    if (typeof cycleMapRange === 'function') {
+      cycleMapRange();
+    }
+    return;
+  }
   if (currentAppKey !== 'sms' || contactView !== 'chat') return;
   if (typeof triggerSmsChatSummaryFromStatusBar === 'function') {
     triggerSmsChatSummaryFromStatusBar();
@@ -163,17 +461,17 @@ function handleRealtimeStatusBarClick(event) {
 const appData = {
   weather: {
     title: '天气',
-    kicker: 'FORECAST',
-    main: '阴云聚集',
-    sub: '空座町上空灵子浓度偏高，西侧风压稳定。',
-    list: [['温度', '11°C'], ['风向', 'NW-3'], ['降雨率', '68%']]
+    kicker: '',
+    main: '',
+    sub: '',
+    list: []
   },
-  intel: {
+  chars: {
     title: '情报',
-    kicker: 'NEWS FLASH',
-    main: '现世监测更新',
-    sub: '十二番队传回最新观测，夜间异常波动增加。',
-    list: [['频道', '尸魂界'], ['等级', 'B-CLASS'], ['时间', '22:40']]
+    kicker: '',
+    main: '',
+    sub: '',
+    list: []
   },
   contact: {
     title: '联络',
@@ -198,17 +496,10 @@ const appData = {
   },
   items: {
     title: '道具',
-    kicker: 'INVENTORY',
-    main: '装备槽已整理',
-    sub: '义骸通行证、灵压感测器与回复剂已装入携行包。',
-    list: [['感测器', '01'], ['回复剂', '02'], ['代行证', 'OK']]
-  },
-  shinigami: {
-    title: '死神',
-    kicker: 'PROFILE',
-    main: '灵压状态稳定',
-    sub: '斩魄刀同步率良好，当前灵压输出维持在安全范围。',
-    list: [['阶级', '代理'], ['同步率', '87%'], ['灵压', '稳定']]
+    kicker: '',
+    main: '',
+    sub: '',
+    list: []
   },
   records: {
     title: '影音',
@@ -226,10 +517,10 @@ const appData = {
   },
   map: {
     title: '地图',
-    kicker: 'SECTOR MAP',
-    main: '监测区 #13',
-    sub: '南街区灵压光点稀疏，异常源位于河岸附近。',
-    list: [['区域', '空座町'], ['坐标', '13-B'], ['风险', '中']]
+    kicker: '',
+    main: '',
+    sub: '',
+    list: []
   },
   radio: {
     title: '新闻区',
@@ -247,7 +538,7 @@ const appData = {
   }
 };
 
-const radioNewsEntries = [
+let radioNewsEntries = [
   {
     title: '现世监测局发布夜间灵压波动预警',
     source: '尸魂界即时台',
@@ -596,12 +887,8 @@ function confirmCurrentSelection() {
 
       if (settingsView === 'aiParamConfig') {
         const temperatureInput = document.getElementById('ai-params-temperature-input');
-        const frequencyPenaltyInput = document.getElementById('ai-params-frequency-penalty-input');
-        const presencePenaltyInput = document.getElementById('ai-params-presence-penalty-input');
         const topPInput = document.getElementById('ai-params-top-p-input');
         if (temperatureInput) pendingAiTemperature = temperatureInput.value;
-        if (frequencyPenaltyInput) pendingAiFrequencyPenalty = frequencyPenaltyInput.value;
-        if (presencePenaltyInput) pendingAiPresencePenalty = presencePenaltyInput.value;
         if (topPInput) pendingAiTopP = topPInput.value;
         saveAiSettings();
         aiConfigStatusMessage = '已保存';
@@ -653,6 +940,25 @@ function confirmCurrentSelection() {
       }
       if (settingsRowOrder[selectedSettingsIndex] === 'aiConfig') {
         openAiConfig();
+      }
+      return;
+    }
+
+    if (currentAppKey === 'weather') {
+      if (weatherView === 'settings') {
+        openWeatherSettingsSelection();
+        return;
+      }
+      if (weatherView === 'apiBinding') {
+        bindWeatherApiProfileSelection();
+        return;
+      }
+      if (weatherView === 'preset') {
+        bindWeatherPresetSelection();
+        return;
+      }
+      if (weatherView === 'autoGenerate') {
+        confirmWeatherAutoGenerateSelection();
       }
       return;
     }
@@ -757,8 +1063,87 @@ function confirmCurrentSelection() {
     }
 
     if (currentAppKey === 'radio') {
+      if (radioView === 'settings') {
+        openRadioSettingsSelection();
+        return;
+      }
+      if (radioView === 'apiBinding') {
+        bindRadioApiProfileSelection();
+        return;
+      }
+      if (radioView === 'preset') {
+        bindRadioPresetSelection();
+        return;
+      }
+      if (radioView === 'autoGenerate') {
+        confirmRadioAutoGenerateSelection();
+        return;
+      }
       if (radioView === 'list') {
         openRadioNewsDetail(selectedRadioNewsIndex);
+      }
+      return;
+    }
+    if (currentAppKey === 'map') {
+      if (mapView === 'settings') {
+        openMapSettingsSelection();
+        return;
+      }
+      if (mapView === 'apiBinding') {
+        bindMapApiProfileSelection();
+        return;
+      }
+      if (mapView === 'preset') {
+        bindMapPresetSelection();
+        return;
+      }
+      if (mapView === 'autoGenerate') {
+        confirmMapAutoGenerateSelection();
+        return;
+      }
+      if (typeof cycleMapRange === 'function') {
+        cycleMapRange();
+      }
+      return;
+    }
+    if (currentAppKey === 'items') {
+      if (itemsView === 'settings') {
+        openItemsSettingsSelection();
+        return;
+      }
+      if (itemsView === 'apiBinding') {
+        bindItemsApiProfileSelection();
+        return;
+      }
+      if (itemsView === 'preset') {
+        bindItemsPresetSelection();
+        return;
+      }
+      if (itemsView === 'autoGenerate') {
+        confirmItemsAutoGenerateSelection();
+        return;
+      }
+      return;
+    }
+    if (currentAppKey === 'chars') {
+      if (charsView === 'settings') {
+        openCharsSettingsSelection();
+        return;
+      }
+      if (charsView === 'apiBinding') {
+        bindCharsApiProfileSelection();
+        return;
+      }
+      if (charsView === 'preset') {
+        bindCharsPresetSelection();
+        return;
+      }
+      if (charsView === 'autoGenerate') {
+        confirmCharsAutoGenerateSelection();
+        return;
+      }
+      if (typeof confirmCharsSelection === 'function') {
+        confirmCharsSelection();
       }
       return;
     }
@@ -821,7 +1206,13 @@ function renderAppWindow(appKey) {
   if (!app) return;
 
   currentAppKey = appKey;
-  document.getElementById('app-window')?.classList.toggle('sms-chat-compact', appKey === 'sms' && contactView === 'chat');
+  const appWindowEl = document.getElementById('app-window');
+  appWindowEl?.classList.toggle('sms-chat-compact', appKey === 'sms' && contactView === 'chat');
+  appWindowEl?.classList.toggle('map-immersive', appKey === 'map');
+  appWindowEl?.classList.toggle('map-hudless', appKey === 'map' && mapView === 'map');
+  appWindowEl?.classList.toggle('radio-hudless', appKey === 'radio' && radioView === 'list');
+  appWindowEl?.classList.toggle('chars-hudless', appKey === 'chars' && charsView === 'list');
+  appWindowEl?.classList.toggle('items-immersive', appKey === 'items' && itemsView === 'list');
   let appTitle = app.title;
   if (appKey === 'settings') {
     if (settingsView === 'aiPromptList') {
@@ -877,14 +1268,64 @@ function renderAppWindow(appKey) {
     } else if (contactView === 'chat') {
       appTitle = getCurrentAiContact()?.name || '短信';
     }
+  } else if (appKey === 'map') {
+    if (mapView === 'settings') {
+      appTitle = '地图设置';
+    } else if (mapView === 'apiBinding') {
+      appTitle = 'API';
+    } else if (mapView === 'preset') {
+      appTitle = '地图预设';
+    } else if (mapView === 'autoGenerate') {
+      appTitle = '自动生成';
+    }
+  } else if (appKey === 'weather') {
+    if (weatherView === 'settings') {
+      appTitle = '天气设置';
+    } else if (weatherView === 'apiBinding') {
+      appTitle = 'API';
+    } else if (weatherView === 'preset') {
+      appTitle = '天气预设';
+    } else if (weatherView === 'autoGenerate') {
+      appTitle = '自动生成';
+    }
+  } else if (appKey === 'items') {
+    if (itemsView === 'settings') {
+      appTitle = '物品设置';
+    } else if (itemsView === 'apiBinding') {
+      appTitle = 'API';
+    } else if (itemsView === 'preset') {
+      appTitle = '物品预设';
+    } else if (itemsView === 'autoGenerate') {
+      appTitle = '自动生成';
+    }
+  } else if (appKey === 'chars') {
+    if (charsView === 'settings') {
+      appTitle = '情报设置';
+    } else if (charsView === 'apiBinding') {
+      appTitle = 'API';
+    } else if (charsView === 'preset') {
+      appTitle = '情报预设';
+    } else if (charsView === 'autoGenerate') {
+      appTitle = '自动生成';
+    }
   } else if (appKey === 'music') {
     if (recordsView === 'musicEditor') {
       appTitle = editingMusicIndex >= 0 ? '编辑音乐' : '新增音乐';
     } else if (recordsView === 'musicPlayer') {
       appTitle = '音乐播放器';
     }
-  } else if (appKey === 'radio' && radioView === 'detail') {
-    appTitle = '新闻正文';
+  } else if (appKey === 'radio') {
+    if (radioView === 'settings') {
+      appTitle = '广播设置';
+    } else if (radioView === 'apiBinding') {
+      appTitle = 'API';
+    } else if (radioView === 'preset') {
+      appTitle = '广播预设';
+    } else if (radioView === 'autoGenerate') {
+      appTitle = '自动生成';
+    } else if (radioView === 'detail') {
+      appTitle = '新闻正文';
+    }
   } else if (appKey === 'data') {
     if (isAiPresetDataCategory(currentDataCategoryKey) && settingsView === 'aiPromptAddType') {
       appTitle = '选择块类型';
@@ -1029,6 +1470,78 @@ function renderAppWindow(appKey) {
     return;
   }
 
+  if (appKey === 'weather') {
+    document.getElementById('app-window-body').classList.remove('is-scrollable');
+    document.getElementById('app-window-body').innerHTML = typeof renderWeatherContent === 'function'
+      ? renderWeatherContent()
+      : '';
+    if (weatherView === 'settings') {
+      setAppSoftkeys(weatherRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+    } else if (weatherView === 'apiBinding') {
+      setAppSoftkeys(weatherRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+    } else if (weatherView === 'preset') {
+      setAppSoftkeys(weatherRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+    } else if (weatherView === 'autoGenerate') {
+      setAppSoftkeys(weatherRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+    } else {
+      setAppSoftkeys('设置', '', '关闭');
+    }
+    requestAnimationFrame(() => {
+      if (weatherView === 'settings') {
+        const settingsList = document.getElementById('weather-settings-list');
+        const selectedItem = settingsList?.querySelector('.weather-settings-item.is-selected');
+        if (!settingsList) return;
+        settingsList.scrollTop = weatherSettingsListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        settingsList.addEventListener('scroll', () => {
+          weatherSettingsListScrollTop = settingsList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (weatherView === 'apiBinding') {
+        const profileList = document.getElementById('weather-api-profile-list');
+        const selectedItem = profileList?.querySelector('.weather-api-profile-item.is-selected');
+        if (!profileList) return;
+        profileList.scrollTop = weatherApiProfileListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        profileList.addEventListener('scroll', () => {
+          weatherApiProfileListScrollTop = profileList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (weatherView === 'preset') {
+        const presetList = document.getElementById('weather-preset-list');
+        const selectedItem = presetList?.querySelector('.weather-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = weatherPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          weatherPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (weatherView === 'autoGenerate') {
+        const autoGenerateList = document.getElementById('weather-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.weather-auto-generate-item.is-selected');
+        if (!autoGenerateList) return;
+        autoGenerateList.scrollTop = weatherAutoGenerateListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        autoGenerateList.addEventListener('scroll', () => {
+          weatherAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (typeof syncWeatherViewState === 'function') {
+        syncWeatherViewState();
+      }
+    });
+    return;
+  }
+
   if (appKey === 'contact') {
     document.getElementById('app-window-body').classList.remove('is-scrollable');
     document.getElementById('app-window-body').innerHTML = renderContactContent();
@@ -1055,6 +1568,76 @@ function renderAppWindow(appKey) {
     }
 
     setAppSoftkeys('新增', aiContacts.length ? '编辑' : '新增', '返回');
+    return;
+  }
+
+  if (appKey === 'chars') {
+    document.getElementById('app-window-body').classList.remove('is-scrollable');
+    document.getElementById('app-window-body').innerHTML = typeof renderCharsContent === 'function'
+      ? renderCharsContent()
+      : '';
+    if (charsView === 'settings') {
+      setAppSoftkeys(charsRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+      requestAnimationFrame(() => {
+        const settingsList = document.getElementById('chars-settings-list');
+        const selectedItem = settingsList?.querySelector('.chars-settings-item.is-selected');
+        if (!settingsList) return;
+        settingsList.scrollTop = charsSettingsListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        settingsList.addEventListener('scroll', () => {
+          charsSettingsListScrollTop = settingsList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (charsView === 'apiBinding') {
+      setAppSoftkeys(charsRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+      requestAnimationFrame(() => {
+        const profileList = document.getElementById('chars-api-profile-list');
+        const selectedItem = profileList?.querySelector('.chars-api-profile-item.is-selected');
+        if (!profileList) return;
+        profileList.scrollTop = charsApiProfileListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        profileList.addEventListener('scroll', () => {
+          charsApiProfileListScrollTop = profileList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (charsView === 'preset') {
+      setAppSoftkeys(charsRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+      requestAnimationFrame(() => {
+        const presetList = document.getElementById('chars-preset-list');
+        const selectedItem = presetList?.querySelector('.chars-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = charsPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          charsPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (charsView === 'autoGenerate') {
+      setAppSoftkeys(charsRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+      requestAnimationFrame(() => {
+        const autoGenerateList = document.getElementById('chars-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.chars-auto-generate-item.is-selected');
+        if (!autoGenerateList) return;
+        autoGenerateList.scrollTop = charsAutoGenerateListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        autoGenerateList.addEventListener('scroll', () => {
+          charsAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    setAppSoftkeys('设置', '', '');
+    requestAnimationFrame(() => {
+      if (typeof syncCharsViewState === 'function') {
+        syncCharsViewState();
+      }
+    });
     return;
   }
 
@@ -1146,8 +1729,11 @@ function renderAppWindow(appKey) {
       setAppSoftkeys(aiChatRequestStatus === 'loading' ? '等待' : '发送', '发出', '返回');
       requestAnimationFrame(() => {
         const chatList = document.getElementById('ai-contact-chat-list');
+        const hasSmsMediaModal = typeof isSmsMediaModalOpen === 'function' && isSmsMediaModalOpen();
         if (!chatList) {
-          focusAiChatInput();
+          if (!hasSmsMediaModal) {
+            focusAiChatInput();
+          }
           return;
         }
         if (aiChatShouldScrollBottom) {
@@ -1160,8 +1746,10 @@ function renderAppWindow(appKey) {
         chatList.addEventListener('scroll', () => {
           aiChatScrollTop = chatList.scrollTop;
         }, { passive: true });
-        syncAiChatInputHeight();
-        focusAiChatInput();
+        if (!hasSmsMediaModal) {
+          syncAiChatInputHeight();
+          focusAiChatInput();
+        }
       });
       return;
     }
@@ -1173,25 +1761,150 @@ function renderAppWindow(appKey) {
   if (appKey === 'radio') {
     document.getElementById('app-window-body').classList.remove('is-scrollable');
     document.getElementById('app-window-body').innerHTML = renderRadioContent();
+    if (radioView === 'settings') {
+      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+    } else if (radioView === 'apiBinding') {
+      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+    } else if (radioView === 'preset') {
+      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+    } else if (radioView === 'autoGenerate') {
+      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+    } else if (radioView === 'detail') {
+      setAppSoftkeys('', '', '返回');
+    } else {
+      setAppSoftkeys('', '', '');
+    }
     requestAnimationFrame(() => {
+      if (radioView === 'settings') {
+        const settingsList = document.getElementById('radio-settings-list');
+        const selectedItem = settingsList?.querySelector('.radio-settings-item.is-selected');
+        if (!settingsList) return;
+        settingsList.scrollTop = radioSettingsListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        settingsList.addEventListener('scroll', () => {
+          radioSettingsListScrollTop = settingsList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+      if (radioView === 'apiBinding') {
+        const profileList = document.getElementById('radio-api-profile-list');
+        const selectedItem = profileList?.querySelector('.radio-api-profile-item.is-selected');
+        if (!profileList) return;
+        profileList.scrollTop = radioApiProfileListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        profileList.addEventListener('scroll', () => {
+          radioApiProfileListScrollTop = profileList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+      if (radioView === 'preset') {
+        const presetList = document.getElementById('radio-preset-list');
+        const selectedItem = presetList?.querySelector('.radio-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = radioPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          radioPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+      if (radioView === 'autoGenerate') {
+        const autoGenerateList = document.getElementById('radio-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.radio-auto-generate-item.is-selected');
+        if (!autoGenerateList) return;
+        autoGenerateList.scrollTop = radioAutoGenerateListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        autoGenerateList.addEventListener('scroll', () => {
+          radioAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+        }, { passive: true });
+        return;
+      }
       if (radioView === 'detail') {
         const detailBody = document.getElementById('radio-news-detail-body');
-        if (!detailBody) return;
-        detailBody.scrollTop = radioDetailScrollTop;
-        detailBody.addEventListener('scroll', () => {
-          radioDetailScrollTop = detailBody.scrollTop;
+        if (detailBody) {
+          detailBody.scrollTop = radioDetailScrollTop;
+          detailBody.addEventListener('scroll', () => {
+            radioDetailScrollTop = detailBody.scrollTop;
+          }, { passive: true });
+        }
+        return;
+      }
+      const radioList = document.getElementById('radio-news-list');
+      const selectedItem = radioList?.querySelector('.radio-news-item.is-selected');
+      if (!radioList) return;
+      radioList.scrollTop = radioListScrollTop;
+      selectedItem?.scrollIntoView({ block: 'nearest' });
+      radioList.addEventListener('scroll', () => {
+        radioListScrollTop = radioList.scrollTop;
+      }, { passive: true });
+    });
+    return;
+  }
+
+  if (appKey === 'map') {
+    document.getElementById('app-window-body').classList.remove('is-scrollable');
+    document.getElementById('app-window-body').innerHTML = renderMapContent();
+    if (mapView === 'settings') {
+      setAppSoftkeys(mapRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+    } else if (mapView === 'apiBinding') {
+      setAppSoftkeys(mapRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+    } else if (mapView === 'preset') {
+      setAppSoftkeys(mapRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+    } else if (mapView === 'autoGenerate') {
+      setAppSoftkeys(mapRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+    } else {
+      setAppSoftkeys('', '', '');
+    }
+    requestAnimationFrame(() => {
+      if (mapView === 'settings') {
+        const settingsList = document.getElementById('map-settings-list');
+        const selectedItem = settingsList?.querySelector('.map-settings-item.is-selected');
+        if (!settingsList) return;
+        settingsList.scrollTop = mapSettingsListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        settingsList.addEventListener('scroll', () => {
+          mapSettingsListScrollTop = settingsList.scrollTop;
         }, { passive: true });
         return;
       }
 
-      const radioList = document.getElementById('radio-news-list');
-      const selectedItem = radioList?.querySelector('.radio-news-item.is-selected');
-      if (!radioList || !selectedItem) return;
-      radioList.scrollTop = radioListScrollTop;
-      selectedItem.scrollIntoView({ block: 'nearest' });
-      radioList.addEventListener('scroll', () => {
-        radioListScrollTop = radioList.scrollTop;
-      }, { passive: true });
+      if (mapView === 'apiBinding') {
+        const profileList = document.getElementById('map-api-profile-list');
+        const selectedItem = profileList?.querySelector('.map-api-profile-item.is-selected');
+        if (!profileList) return;
+        profileList.scrollTop = mapApiProfileListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        profileList.addEventListener('scroll', () => {
+          mapApiProfileListScrollTop = profileList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (mapView === 'preset') {
+        const presetList = document.getElementById('map-preset-list');
+        const selectedItem = presetList?.querySelector('.map-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = mapPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          mapPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      if (mapView === 'autoGenerate') {
+        const autoGenerateList = document.getElementById('map-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.map-auto-generate-item.is-selected');
+        if (!autoGenerateList) return;
+        autoGenerateList.scrollTop = mapAutoGenerateListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        autoGenerateList.addEventListener('scroll', () => {
+          mapAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+        }, { passive: true });
+        return;
+      }
+
+      mountMapApp();
     });
     return;
   }
@@ -1361,6 +2074,72 @@ function renderAppWindow(appKey) {
     return;
   }
 
+  if (appKey === 'items') {
+    document.getElementById('app-window-body').classList.remove('is-scrollable');
+    document.getElementById('app-window-body').innerHTML = renderItemsContent();
+    if (itemsView === 'settings') {
+      setAppSoftkeys(itemsRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+      requestAnimationFrame(() => {
+        const settingsList = document.getElementById('items-settings-list');
+        const selectedItem = settingsList?.querySelector('.items-settings-item.is-selected');
+        if (!settingsList) return;
+        settingsList.scrollTop = itemsSettingsListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        settingsList.addEventListener('scroll', () => {
+          itemsSettingsListScrollTop = settingsList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (itemsView === 'apiBinding') {
+      setAppSoftkeys(itemsRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+      requestAnimationFrame(() => {
+        const profileList = document.getElementById('items-api-profile-list');
+        const selectedItem = profileList?.querySelector('.items-api-profile-item.is-selected');
+        if (!profileList) return;
+        profileList.scrollTop = itemsApiProfileListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        profileList.addEventListener('scroll', () => {
+          itemsApiProfileListScrollTop = profileList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (itemsView === 'preset') {
+      setAppSoftkeys(itemsRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+      requestAnimationFrame(() => {
+        const presetList = document.getElementById('items-preset-list');
+        const selectedItem = presetList?.querySelector('.items-preset-item.is-selected');
+        if (!presetList) return;
+        presetList.scrollTop = itemsPresetListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        presetList.addEventListener('scroll', () => {
+          itemsPresetListScrollTop = presetList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    if (itemsView === 'autoGenerate') {
+      setAppSoftkeys(itemsRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+      requestAnimationFrame(() => {
+        const autoGenerateList = document.getElementById('items-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.items-auto-generate-item.is-selected');
+        if (!autoGenerateList) return;
+        autoGenerateList.scrollTop = itemsAutoGenerateListScrollTop;
+        selectedItem?.scrollIntoView({ block: 'nearest' });
+        autoGenerateList.addEventListener('scroll', () => {
+          itemsAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+        }, { passive: true });
+      });
+      return;
+    }
+    setAppSoftkeys('设置', '', '');
+    requestAnimationFrame(() => {
+      syncItemsViewState();
+    });
+    return;
+  }
+
   setAppSoftkeys('返回', '选择', '关闭');
   document.getElementById('app-window-body').innerHTML = `
 
@@ -1401,6 +2180,21 @@ function openApp(appKey) {
     aiConfigConnectionState = 'idle';
     setPendingAiSettings(aiSettings);
   }
+  if (appKey === 'weather') {
+    weatherView = 'list';
+    selectedWeatherSettingsIndex = 0;
+    weatherSettingsListScrollTop = 0;
+    currentWeatherPresetId = normalizeAiSettings(aiSettings).selectedWeatherPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
+    selectedWeatherPresetIndex = -1;
+    weatherPresetListScrollTop = 0;
+    selectedWeatherApiProfileIndex = -1;
+    weatherApiProfileListScrollTop = 0;
+    selectedWeatherAutoGenerateIndex = 0;
+    weatherAutoGenerateListScrollTop = 0;
+    if (typeof resetWeatherViewState === 'function') {
+      resetWeatherViewState();
+    }
+  }
   if (appKey === 'contact') {
     contactView = 'list';
     editingAiContactIndex = -1;
@@ -1438,6 +2232,18 @@ function openApp(appKey) {
     smsApiProfileListScrollTop = 0;
     smsApiBindingReturnView = 'list';
   }
+  if (appKey === 'map') {
+    mapView = 'map';
+    selectedMapSettingsIndex = 0;
+    mapSettingsListScrollTop = 0;
+    currentMapPresetId = normalizeAiSettings(aiSettings).selectedMapPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
+    selectedMapPresetIndex = -1;
+    mapPresetListScrollTop = 0;
+    selectedMapApiProfileIndex = -1;
+    mapApiProfileListScrollTop = 0;
+    selectedMapAutoGenerateIndex = 0;
+    mapAutoGenerateListScrollTop = 0;
+  }
   if (appKey === 'data') {
     dataView = 'categoryList';
     selectedDataCategoryIndex = 0;
@@ -1474,11 +2280,42 @@ function openApp(appKey) {
     isNetworkVideoPlaybackReady = false;
     isNetworkFullscreen = false;
   }
+  if (appKey === 'chars') {
+    if (typeof resetCharsViewState === 'function') {
+      resetCharsViewState();
+    }
+  }
   if (appKey === 'radio') {
     radioView = 'list';
     radioListScrollTop = 0;
     radioDetailScrollTop = 0;
     selectedRadioNewsIndex = Math.min(selectedRadioNewsIndex, Math.max(radioNewsEntries.length - 1, 0));
+    selectedRadioSettingsIndex = 0;
+    radioSettingsListScrollTop = 0;
+    selectedRadioApiProfileIndex = -1;
+    radioApiProfileListScrollTop = 0;
+    currentRadioPresetId = normalizeAiSettings(aiSettings).selectedRadioPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
+    selectedRadioPresetIndex = -1;
+    radioPresetListScrollTop = 0;
+    selectedRadioAutoGenerateIndex = 0;
+    radioAutoGenerateListScrollTop = 0;
+    radioRequestStatus = 'idle';
+    radioGenerationStatusMessage = '';
+  }
+  if (appKey === 'items') {
+    itemsView = 'list';
+    selectedItemsSettingsIndex = 0;
+    itemsSettingsListScrollTop = 0;
+    selectedItemsApiProfileIndex = -1;
+    itemsApiProfileListScrollTop = 0;
+    currentItemsPresetId = normalizeAiSettings(aiSettings).selectedItemsPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
+    selectedItemsPresetIndex = -1;
+    itemsPresetListScrollTop = 0;
+    selectedItemsAutoGenerateIndex = 0;
+    itemsAutoGenerateListScrollTop = 0;
+    selectedItemIndex = itemEntries.length ? Math.min(Math.max(selectedItemIndex, 0), itemEntries.length - 1) : -1;
+    itemsListScrollTop = 0;
+    itemsDetailScrollTop = 0;
   }
   hideScreenSaver();
   renderAppWindow(appKey);
@@ -1527,9 +2364,32 @@ function closeApp() {
   selectedSmsApiProfileIndex = -1;
   smsApiProfileListScrollTop = 0;
   smsApiBindingReturnView = 'list';
+  mapView = 'map';
+  selectedMapSettingsIndex = 0;
+  mapSettingsListScrollTop = 0;
+  currentMapPresetId = '';
+  selectedMapPresetIndex = -1;
+  mapPresetListScrollTop = 0;
+  selectedMapApiProfileIndex = -1;
+  mapApiProfileListScrollTop = 0;
+  selectedMapAutoGenerateIndex = 0;
+  mapAutoGenerateListScrollTop = 0;
+  weatherView = 'list';
+  selectedWeatherSettingsIndex = 0;
+  weatherSettingsListScrollTop = 0;
+  currentWeatherPresetId = '';
+  selectedWeatherPresetIndex = -1;
+  weatherPresetListScrollTop = 0;
+  selectedWeatherApiProfileIndex = -1;
+  weatherApiProfileListScrollTop = 0;
+  selectedWeatherAutoGenerateIndex = 0;
+  weatherAutoGenerateListScrollTop = 0;
   radioView = 'list';
   radioListScrollTop = 0;
   radioDetailScrollTop = 0;
+  selectedItemIndex = itemEntries.length ? 0 : -1;
+  itemsListScrollTop = 0;
+  itemsDetailScrollTop = 0;
   dataView = 'categoryList';
   selectedDataCategoryIndex = 0;
   currentDataCategoryKey = 'records';
@@ -1658,6 +2518,18 @@ function pressDpad(event) {
       moveRecordsSelection(direction);
     } else if (currentAppKey === 'radio') {
       moveRadioSelection(direction);
+    } else if (currentAppKey === 'map') {
+      moveMapSelection(direction);
+    } else if (currentAppKey === 'weather') {
+      if (typeof moveWeatherSelection === 'function') {
+        moveWeatherSelection(direction);
+      }
+    } else if (currentAppKey === 'items') {
+      moveItemsSelection(direction);
+    } else if (currentAppKey === 'chars') {
+      if (typeof moveCharsSelection === 'function') {
+        moveCharsSelection(direction);
+      }
     }
     return;
   }
@@ -1693,6 +2565,16 @@ function handleSideButtonPress(event) {
     if (isScreenSaverActive) {
       hideScreenSaver();
       updateMenuSelection();
+      return;
+    }
+    if (currentAppKey === 'weather' && isAppWindowOpen()) {
+      if (weatherView === 'list') {
+        openWeatherSettings();
+        return;
+      }
+      if (typeof triggerWeatherGenerationFromSoftkey === 'function') {
+        triggerWeatherGenerationFromSoftkey();
+      }
       return;
     }
     if (currentAppKey === 'music' && isAppWindowOpen()) {
@@ -1733,6 +2615,9 @@ function handleSideButtonPress(event) {
         return;
       }
       if (contactView === 'chat') {
+        if (typeof isSmsMediaModalOpen === 'function' && isSmsMediaModalOpen()) {
+          return;
+        }
         if (selectedAiChatMessageIds.length) {
           deleteSelectedAiChatMessage();
           return;
@@ -1743,6 +2628,49 @@ function handleSideButtonPress(event) {
       if (contactView === 'smsSettings' || contactView === 'smsApiBinding' || contactView === 'smsPreset' || contactView === 'smsSummaryPreset' || contactView === 'smsChatHistory') {
         return;
       }
+    }
+    if (currentAppKey === 'map' && isAppWindowOpen()) {
+      if (mapView === 'map') {
+        openMapSettings();
+        return;
+      }
+      if (typeof triggerMapGenerationFromSoftkey === 'function') {
+        triggerMapGenerationFromSoftkey();
+      }
+      return;
+    }
+    if (currentAppKey === 'items' && isAppWindowOpen()) {
+      if (itemsView === 'list') {
+        openItemsSettings();
+        return;
+      }
+      if (typeof triggerItemsGenerationFromSoftkey === 'function') {
+        triggerItemsGenerationFromSoftkey();
+      }
+      return;
+    }
+    if (currentAppKey === 'chars' && isAppWindowOpen()) {
+      if (charsView === 'list') {
+        openCharsSettings();
+        return;
+      }
+      if (typeof triggerCharsGenerationFromSoftkey === 'function') {
+        triggerCharsGenerationFromSoftkey();
+      }
+      return;
+    }
+    if (currentAppKey === 'radio' && isAppWindowOpen()) {
+      if (radioView === 'list') {
+        openRadioSettings();
+        return;
+      }
+      if (radioView === 'detail') {
+        return;
+      }
+      if (typeof triggerRadioGenerationFromSoftkey === 'function') {
+        triggerRadioGenerationFromSoftkey();
+      }
+      return;
     }
     if (currentAppKey === 'data' && isAppWindowOpen()) {
       if (isAiPresetDataCategory(currentDataCategoryKey) && settingsView === 'aiPromptContextBlockEditor') {
@@ -1920,6 +2848,10 @@ function handleSideButtonPress(event) {
       }
     }
     if (currentAppKey === 'sms') {
+      if (contactView === 'chat' && typeof isSmsMediaModalOpen === 'function' && isSmsMediaModalOpen()) {
+        closeSmsMediaModal();
+        return;
+      }
       if (contactView === 'smsApiBinding') {
         closeSmsApiBindingList();
         return;
@@ -1940,6 +2872,110 @@ function handleSideButtonPress(event) {
         closeApp();
         return;
       }
+    }
+    if (currentAppKey === 'map') {
+      if (mapView === 'apiBinding') {
+        closeMapApiBindingList();
+        return;
+      }
+      if (mapView === 'preset') {
+        closeMapPresetList();
+        return;
+      }
+      if (mapView === 'autoGenerate') {
+        closeMapAutoGenerateList();
+        return;
+      }
+      if (mapView === 'settings') {
+        closeMapSettings();
+        return;
+      }
+      closeApp();
+      return;
+    }
+    if (currentAppKey === 'weather') {
+      if (weatherView === 'apiBinding') {
+        closeWeatherApiBindingList();
+        return;
+      }
+      if (weatherView === 'preset') {
+        closeWeatherPresetList();
+        return;
+      }
+      if (weatherView === 'autoGenerate') {
+        closeWeatherAutoGenerateList();
+        return;
+      }
+      if (weatherView === 'settings') {
+        closeWeatherSettings();
+        return;
+      }
+      closeApp();
+      return;
+    }
+    if (currentAppKey === 'chars') {
+      if (charsView === 'apiBinding') {
+        closeCharsApiBindingList();
+        return;
+      }
+      if (charsView === 'preset') {
+        closeCharsPresetList();
+        return;
+      }
+      if (charsView === 'autoGenerate') {
+        closeCharsAutoGenerateList();
+        return;
+      }
+      if (charsView === 'settings') {
+        closeCharsSettings();
+        return;
+      }
+      closeApp();
+      return;
+    }
+    if (currentAppKey === 'radio') {
+      if (radioView === 'apiBinding') {
+        closeRadioApiBindingList();
+        return;
+      }
+      if (radioView === 'preset') {
+        closeRadioPresetList();
+        return;
+      }
+      if (radioView === 'autoGenerate') {
+        closeRadioAutoGenerateList();
+        return;
+      }
+      if (radioView === 'settings') {
+        closeRadioSettings();
+        return;
+      }
+      if (radioView === 'detail') {
+        closeRadioNewsDetail();
+        return;
+      }
+      closeApp();
+      return;
+    }
+    if (currentAppKey === 'items') {
+      if (itemsView === 'apiBinding') {
+        closeItemsApiBindingList();
+        return;
+      }
+      if (itemsView === 'preset') {
+        closeItemsPresetList();
+        return;
+      }
+      if (itemsView === 'autoGenerate') {
+        closeItemsAutoGenerateList();
+        return;
+      }
+      if (itemsView === 'settings') {
+        closeItemsSettings();
+        return;
+      }
+      closeApp();
+      return;
     }
     if (currentAppKey === 'data') {
       if (isAiPresetDataCategory(currentDataCategoryKey) && settingsView === 'aiPromptMessageBlockEditor') {
@@ -2180,6 +3216,45 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
+  const itemsListEntry = event.target.closest('[data-item-index]');
+  if (itemsListEntry && currentAppKey === 'items' && itemsView === 'list') {
+    updateItemsSelection(Number(itemsListEntry.dataset.itemIndex), { listOnly: true, resetDetailScroll: true });
+    event.stopPropagation();
+    return;
+  }
+
+  const itemsSettingsItem = event.target.closest('[data-items-settings-index]');
+  if (itemsSettingsItem && currentAppKey === 'items' && itemsView === 'settings') {
+    selectedItemsSettingsIndex = Number(itemsSettingsItem.dataset.itemsSettingsIndex);
+    openItemsSettingsSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const itemsApiProfileItem = event.target.closest('[data-items-api-profile-index]');
+  if (itemsApiProfileItem && currentAppKey === 'items' && itemsView === 'apiBinding') {
+    selectedItemsApiProfileIndex = Number(itemsApiProfileItem.dataset.itemsApiProfileIndex);
+    bindItemsApiProfileSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const itemsPresetItem = event.target.closest('[data-items-preset-index]');
+  if (itemsPresetItem && currentAppKey === 'items' && itemsView === 'preset') {
+    selectedItemsPresetIndex = Number(itemsPresetItem.dataset.itemsPresetIndex);
+    bindItemsPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const itemsAutoGenerateItem = event.target.closest('[data-items-auto-generate-index]');
+  if (itemsAutoGenerateItem && currentAppKey === 'items' && itemsView === 'autoGenerate') {
+    selectedItemsAutoGenerateIndex = Number(itemsAutoGenerateItem.dataset.itemsAutoGenerateIndex);
+    confirmItemsAutoGenerateSelection();
+    event.stopPropagation();
+    return;
+  }
+
   const networkToggleButton = event.target.closest('#network-landscape-toggle-button, #network-portrait-toggle-button');
   if (networkToggleButton && currentAppKey === 'records' && recordsView === 'videoPlayer') {
     toggleNetworkVideoPlayback();
@@ -2257,6 +3332,13 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
+  const aiPresetInfoRoleButton = event.target.closest('[data-ai-preset-info-role-index]');
+  if (aiPresetInfoRoleButton && ['settings', 'data'].includes(currentAppKey) && settingsView === 'aiPromptInfoSourcePicker') {
+    cycleAiPresetInfoMessageRole(1, Number(aiPresetInfoRoleButton.dataset.aiPresetInfoRoleIndex));
+    event.stopPropagation();
+    return;
+  }
+
   const aiPresetInfoSourceItem = event.target.closest('[data-ai-preset-info-source-index]');
   if (aiPresetInfoSourceItem && ['settings', 'data'].includes(currentAppKey) && settingsView === 'aiPromptInfoSourcePicker') {
     selectedAiPresetInfoSourceIndex = Number(aiPresetInfoSourceItem.dataset.aiPresetInfoSourceIndex);
@@ -2276,6 +3358,27 @@ document.getElementById('app-window').addEventListener('click', (event) => {
   const aiPresetRoleToggleButton = event.target.closest('#ai-preset-block-role-toggle');
   if (aiPresetRoleToggleButton && ['settings', 'data'].includes(currentAppKey) && settingsView === 'aiPromptMessageBlockEditor') {
     cycleAiPresetDraftRole(1);
+    event.stopPropagation();
+    return;
+  }
+
+  const smsMediaModalCloseButton = event.target.closest('[data-sms-media-modal-close]');
+  if (smsMediaModalCloseButton && currentAppKey === 'sms' && contactView === 'chat') {
+    closeSmsMediaModal();
+    event.stopPropagation();
+    return;
+  }
+
+  const smsMediaModalOverlay = event.target.closest('[data-sms-media-modal-overlay]');
+  if (smsMediaModalOverlay && currentAppKey === 'sms' && contactView === 'chat') {
+    closeSmsMediaModal();
+    event.stopPropagation();
+    return;
+  }
+
+  const smsMediaTrigger = event.target.closest('[data-sms-media-trigger]');
+  if (smsMediaTrigger && currentAppKey === 'sms' && contactView === 'chat') {
+    openSmsMediaModal(smsMediaTrigger.dataset.smsMediaType, smsMediaTrigger.dataset.smsMediaContent);
     event.stopPropagation();
     return;
   }
@@ -2348,6 +3451,134 @@ document.getElementById('app-window').addEventListener('click', (event) => {
   if (smsSummaryPresetItem && currentAppKey === 'sms' && contactView === 'smsSummaryPreset') {
     selectedSmsSummaryPresetIndex = Number(smsSummaryPresetItem.dataset.smsSummaryPresetIndex);
     bindSmsSummaryPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const weatherSettingsItem = event.target.closest('[data-weather-settings-index]');
+  if (weatherSettingsItem && currentAppKey === 'weather' && weatherView === 'settings') {
+    selectedWeatherSettingsIndex = Number(weatherSettingsItem.dataset.weatherSettingsIndex);
+    openWeatherSettingsSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const weatherApiProfileItem = event.target.closest('[data-weather-api-profile-index]');
+  if (weatherApiProfileItem && currentAppKey === 'weather' && weatherView === 'apiBinding') {
+    selectedWeatherApiProfileIndex = Number(weatherApiProfileItem.dataset.weatherApiProfileIndex);
+    bindWeatherApiProfileSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const weatherPresetItem = event.target.closest('[data-weather-preset-index]');
+  if (weatherPresetItem && currentAppKey === 'weather' && weatherView === 'preset') {
+    selectedWeatherPresetIndex = Number(weatherPresetItem.dataset.weatherPresetIndex);
+    bindWeatherPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const weatherAutoGenerateItem = event.target.closest('[data-weather-auto-generate-index]');
+  if (weatherAutoGenerateItem && currentAppKey === 'weather' && weatherView === 'autoGenerate') {
+    selectedWeatherAutoGenerateIndex = Number(weatherAutoGenerateItem.dataset.weatherAutoGenerateIndex);
+    confirmWeatherAutoGenerateSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const mapSettingsItem = event.target.closest('[data-map-settings-index]');
+  if (mapSettingsItem && currentAppKey === 'map' && mapView === 'settings') {
+    selectedMapSettingsIndex = Number(mapSettingsItem.dataset.mapSettingsIndex);
+    openMapSettingsSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const mapApiProfileItem = event.target.closest('[data-map-api-profile-index]');
+  if (mapApiProfileItem && currentAppKey === 'map' && mapView === 'apiBinding') {
+    selectedMapApiProfileIndex = Number(mapApiProfileItem.dataset.mapApiProfileIndex);
+    bindMapApiProfileSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const mapPresetItem = event.target.closest('[data-map-preset-index]');
+  if (mapPresetItem && currentAppKey === 'map' && mapView === 'preset') {
+    selectedMapPresetIndex = Number(mapPresetItem.dataset.mapPresetIndex);
+    bindMapPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const mapAutoGenerateItem = event.target.closest('[data-map-auto-generate-index]');
+  if (mapAutoGenerateItem && currentAppKey === 'map' && mapView === 'autoGenerate') {
+    selectedMapAutoGenerateIndex = Number(mapAutoGenerateItem.dataset.mapAutoGenerateIndex);
+    confirmMapAutoGenerateSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const radioSettingsItem = event.target.closest('[data-radio-settings-index]');
+  if (radioSettingsItem && currentAppKey === 'radio' && radioView === 'settings') {
+    selectedRadioSettingsIndex = Number(radioSettingsItem.dataset.radioSettingsIndex);
+    openRadioSettingsSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const radioApiProfileItem = event.target.closest('[data-radio-api-profile-index]');
+  if (radioApiProfileItem && currentAppKey === 'radio' && radioView === 'apiBinding') {
+    selectedRadioApiProfileIndex = Number(radioApiProfileItem.dataset.radioApiProfileIndex);
+    bindRadioApiProfileSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const radioPresetItem = event.target.closest('[data-radio-preset-index]');
+  if (radioPresetItem && currentAppKey === 'radio' && radioView === 'preset') {
+    selectedRadioPresetIndex = Number(radioPresetItem.dataset.radioPresetIndex);
+    bindRadioPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const radioAutoGenerateItem = event.target.closest('[data-radio-auto-generate-index]');
+  if (radioAutoGenerateItem && currentAppKey === 'radio' && radioView === 'autoGenerate') {
+    selectedRadioAutoGenerateIndex = Number(radioAutoGenerateItem.dataset.radioAutoGenerateIndex);
+    confirmRadioAutoGenerateSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const charsSettingsItem = event.target.closest('[data-chars-settings-index]');
+  if (charsSettingsItem && currentAppKey === 'chars' && charsView === 'settings') {
+    selectedCharsSettingsIndex = Number(charsSettingsItem.dataset.charsSettingsIndex);
+    openCharsSettingsSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const charsApiProfileItem = event.target.closest('[data-chars-api-profile-index]');
+  if (charsApiProfileItem && currentAppKey === 'chars' && charsView === 'apiBinding') {
+    selectedCharsApiProfileIndex = Number(charsApiProfileItem.dataset.charsApiProfileIndex);
+    bindCharsApiProfileSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const charsPresetItem = event.target.closest('[data-chars-preset-index]');
+  if (charsPresetItem && currentAppKey === 'chars' && charsView === 'preset') {
+    selectedCharsPresetIndex = Number(charsPresetItem.dataset.charsPresetIndex);
+    bindCharsPresetSelection();
+    event.stopPropagation();
+    return;
+  }
+
+  const charsAutoGenerateItem = event.target.closest('[data-chars-auto-generate-index]');
+  if (charsAutoGenerateItem && currentAppKey === 'chars' && charsView === 'autoGenerate') {
+    selectedCharsAutoGenerateIndex = Number(charsAutoGenerateItem.dataset.charsAutoGenerateIndex);
+    confirmCharsAutoGenerateSelection();
     event.stopPropagation();
     return;
   }
@@ -2631,12 +3862,6 @@ document.getElementById('app-window').addEventListener('input', (event) => {
   if (event.target.id === 'ai-params-temperature-input') {
     pendingAiTemperature = event.target.value;
   }
-  if (event.target.id === 'ai-params-frequency-penalty-input') {
-    pendingAiFrequencyPenalty = event.target.value;
-  }
-  if (event.target.id === 'ai-params-presence-penalty-input') {
-    pendingAiPresencePenalty = event.target.value;
-  }
   if (event.target.id === 'ai-params-top-p-input') {
     pendingAiTopP = event.target.value;
   }
@@ -2708,6 +3933,9 @@ document.addEventListener('keydown', (event) => {
       }
     }
     if (currentAppKey === 'sms') {
+      if (contactView === 'chat' && typeof isSmsMediaModalOpen === 'function' && isSmsMediaModalOpen()) {
+        return;
+      }
       if (contactView === 'chat' && document.activeElement?.id === 'ai-contact-chat-input') {
         confirmCurrentSelection();
         return;
@@ -2838,6 +4066,10 @@ document.addEventListener('keydown', (event) => {
       }
     }
     if (currentAppKey === 'sms') {
+      if (contactView === 'chat' && typeof isSmsMediaModalOpen === 'function' && isSmsMediaModalOpen()) {
+        closeSmsMediaModal();
+        return;
+      }
       if (contactView === 'smsApiBinding') {
         closeSmsApiBindingList();
         return;
@@ -2858,6 +4090,26 @@ document.addEventListener('keydown', (event) => {
         closeApp();
         return;
       }
+    }
+    if (currentAppKey === 'map') {
+      if (mapView === 'apiBinding') {
+        closeMapApiBindingList();
+        return;
+      }
+      if (mapView === 'preset') {
+        closeMapPresetList();
+        return;
+      }
+      if (mapView === 'autoGenerate') {
+        closeMapAutoGenerateList();
+        return;
+      }
+      if (mapView === 'settings') {
+        closeMapSettings();
+        return;
+      }
+      closeApp();
+      return;
     }
     if (currentAppKey === 'data') {
       if (dataView === 'presetEditor') {
@@ -2907,9 +4159,27 @@ document.addEventListener('keydown', (event) => {
         return;
       }
     }
-    if (currentAppKey === 'radio' && radioView === 'detail') {
-      closeRadioNewsDetail();
-      return;
+    if (currentAppKey === 'radio') {
+      if (radioView === 'apiBinding') {
+        closeRadioApiBindingList();
+        return;
+      }
+      if (radioView === 'preset') {
+        closeRadioPresetList();
+        return;
+      }
+      if (radioView === 'autoGenerate') {
+        closeRadioAutoGenerateList();
+        return;
+      }
+      if (radioView === 'settings') {
+        closeRadioSettings();
+        return;
+      }
+      if (radioView === 'detail') {
+        closeRadioNewsDetail();
+        return;
+      }
     }
     closeApp();
   }
@@ -2953,6 +4223,36 @@ applyFontSize(currentFontSizeKey);
 async function bootstrapAiPersistentData() {
   bindBleachPhoneChatsVariableEvents();
   bindBleachPhoneChatGenerationEvents();
+  if (typeof bindBleachPhoneDateTimeVariableEvents === 'function') {
+    bindBleachPhoneDateTimeVariableEvents();
+  }
+  if (typeof bindMapAutoGenerateEvents === 'function') {
+    bindMapAutoGenerateEvents();
+  }
+  if (typeof bindBleachPhoneItemsVariableEvents === 'function') {
+    bindBleachPhoneItemsVariableEvents();
+  }
+  if (typeof bindItemsAutoGenerateEvents === 'function') {
+    bindItemsAutoGenerateEvents();
+  }
+  if (typeof bindBleachPhoneCharsVariableEvents === 'function') {
+    bindBleachPhoneCharsVariableEvents();
+  }
+  if (typeof bindCharsAutoGenerateEvents === 'function') {
+    bindCharsAutoGenerateEvents();
+  }
+  if (typeof bindBleachPhoneRadioVariableEvents === 'function') {
+    bindBleachPhoneRadioVariableEvents();
+  }
+  if (typeof bindRadioAutoGenerateEvents === 'function') {
+    bindRadioAutoGenerateEvents();
+  }
+  if (typeof bindBleachPhoneWeatherVariableEvents === 'function') {
+    bindBleachPhoneWeatherVariableEvents();
+  }
+  if (typeof bindWeatherAutoGenerateEvents === 'function') {
+    bindWeatherAutoGenerateEvents();
+  }
   try {
     const hydratedState = await hydrateAiPersistentData();
     aiSettings = hydratedState.aiSettings;
@@ -2964,6 +4264,17 @@ async function bootstrapAiPersistentData() {
       syncBleachPhoneChatsVariable();
     }
     await loadBleachPhoneSummarizedChatsVariableToRuntime({ persistContacts: true });
+    if (typeof loadBleachPhoneDateTimeVariableToRuntime === 'function') {
+      await loadBleachPhoneDateTimeVariableToRuntime({ render: false, clearOnMissing: true });
+    }
+    await loadBleachPhoneItemsVariableToRuntime({ render: false, clearOnMissing: false });
+    await loadBleachPhoneCharsVariableToRuntime({ render: false, clearOnMissing: false });
+    await loadBleachPhoneMapVariableToRuntime({ render: false, clearOnMissing: false });
+    await loadBleachPhoneRadioVariableToRuntime({ render: false, clearOnMissing: false });
+    await loadBleachPhoneWeatherVariableToRuntime({ render: false, clearOnMissing: false });
+    if (typeof syncWeatherByLatestAiText === 'function') {
+      await syncWeatherByLatestAiText({ render: false, persist: false });
+    }
     selectedAiContactIndex = aiContacts.length ? Math.min(Math.max(selectedAiContactIndex, 0), aiContacts.length - 1) : -1;
     currentAiContactIndex = currentAiContactIndex >= 0 && aiContacts.length
       ? Math.min(currentAiContactIndex, aiContacts.length - 1)
@@ -2971,7 +4282,7 @@ async function bootstrapAiPersistentData() {
     if (contactView === 'chat' && currentAiContactIndex < 0) {
       contactView = 'list';
     }
-    if (currentAppKey === 'settings' || currentAppKey === 'contact' || currentAppKey === 'sms') {
+    if (currentAppKey === 'settings' || currentAppKey === 'contact' || currentAppKey === 'sms' || currentAppKey === 'items' || currentAppKey === 'chars' || currentAppKey === 'map' || currentAppKey === 'radio' || currentAppKey === 'weather') {
       renderAppWindow(currentAppKey);
     }
   } catch (error) {

@@ -1,0 +1,50 @@
+<map_json>
+{
+  "player": {
+    "x": 0,
+    "y": 0
+  },
+  "points": [
+    {
+      "id": "kara-town-main-street",
+      "x": 12,
+      "y": -8,
+      "name": "空座町主街",
+      "range": "100m",
+      "category": "地点",
+      "desc": "夜间仍有人流往来的商业街，路边能看到尚未收摊的便利店与自动贩卖机。",
+      "color": "#2ecc71"
+    },
+    {
+      "id": "rukia-observe",
+      "x": -24,
+      "y": 16,
+      "name": "朽木露琪亚",
+      "range": "100m",
+      "category": "人物",
+      "desc": "正站在电线杆旁观察周围灵压变化，似乎在确认异常波动来源。",
+      "color": "#3498db"
+    },
+    {
+      "id": "spirit-spike",
+      "x": 180,
+      "y": -120,
+      "name": "灵压异常点",
+      "range": "1km",
+      "category": "事件",
+      "desc": "监测到短时升高的灵压脉冲，怀疑有虚正在接近现世边界。",
+      "color": "#e74c3c"
+    },
+    {
+      "id": "urahara-shop",
+      "x": -320,
+      "y": 260,
+      "name": "浦原商店",
+      "range": "1km",
+      "category": "地点",
+      "desc": "门面低调但内部设备齐全，是获取特殊道具与情报的重要据点。",
+      "color": "#f1c40f"
+    }
+  ]
+}
+</map_json>

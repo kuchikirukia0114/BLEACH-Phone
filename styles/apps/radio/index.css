@@ -1,4 +1,12 @@
-﻿  .radio-news-list {
+﻿.app-window.radio-hudless .app-footer {
+  display: none;
+}
+
+.app-window.radio-hudless .app-body {
+  padding-bottom: 8px;
+}
+
+  .radio-news-list {
     display: flex;
     flex-direction: column;
     gap: 3px;

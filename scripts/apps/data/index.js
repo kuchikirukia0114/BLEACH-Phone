@@ -636,6 +636,12 @@ function moveDataSelection(direction) {
     return;
   }
 
+  if (isAiPresetDataCategory(currentDataCategoryKey) && settingsView === 'aiPromptInfoSourcePicker') {
+    if (direction === 'left') cycleAiPresetInfoMessageRole(-1, selectedAiPresetInfoSourceIndex);
+    if (direction === 'right') cycleAiPresetInfoMessageRole(1, selectedAiPresetInfoSourceIndex);
+    return;
+  }
+
   if (dataView === 'presetDetail') {
     const detailList = document.getElementById('data-entry-list');
     if (!detailList) return;

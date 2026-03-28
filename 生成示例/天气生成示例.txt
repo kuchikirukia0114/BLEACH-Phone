@@ -1,0 +1,33 @@
+<weather_json>
+{
+  "date": "2025.03.27",
+  "weekday": "星期四",
+  "time": "21:18",
+  "entries": [
+    {
+      "key": "sunny",
+      "desc": "晴",
+      "temp": "24°C / 18°C",
+      "current_temp": "24°C",
+      "humidity": "45%",
+      "wind": "3级"
+    },
+    {
+      "key": "lightRain",
+      "desc": "小雨",
+      "temp": "19°C / 15°C",
+      "current_temp": "18°C",
+      "humidity": "76%",
+      "wind": "2级"
+    },
+    {
+      "key": "nightCloudy",
+      "desc": "多云",
+      "temp": "20°C / 15°C",
+      "current_temp": "17°C",
+      "humidity": "61%",
+      "wind": "1级"
+    }
+  ]
+}
+</weather_json>
