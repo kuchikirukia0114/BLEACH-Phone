@@ -614,9 +614,10 @@ function moveDataSelection(direction) {
   }
 
   if (isAiPresetDataCategory(currentDataCategoryKey) && settingsView === 'aiPromptWorldBookPicker') {
-    if (!aiPresetWorldBookOptions.length) return;
+    const worldBookOptions = getAiPresetConfiguredWorldBookOptions(aiSettings);
+    if (!worldBookOptions.length) return;
     if (direction === 'up') selectedAiPresetWorldBookIndex = Math.max(0, selectedAiPresetWorldBookIndex - 1);
-    if (direction === 'down') selectedAiPresetWorldBookIndex = Math.min(aiPresetWorldBookOptions.length - 1, selectedAiPresetWorldBookIndex + 1);
+    if (direction === 'down') selectedAiPresetWorldBookIndex = Math.min(worldBookOptions.length - 1, selectedAiPresetWorldBookIndex + 1);
     renderAppWindow('data');
     return;
   }
@@ -725,14 +726,10 @@ function renderDataPresetList() {
     <div class="screensaver-saved-list" id="data-preset-list">
       ${presets.map((preset) => {
         const canDelete = !isAiPresetCategory && preset.id !== DATA_DEFAULT_PRESET_ID;
-        const subtitle = isAiPresetCategory
-          ? `${Array.isArray(preset.blocks) ? preset.blocks.length : 0} 个块`
-          : '';
         return `
         <div class="screensaver-saved-item data-preset-item ${currentDataPresetId === preset.id ? 'is-selected' : ''} ${!isAiPresetCategory && activePresetId === preset.id ? 'is-active' : ''}" data-data-preset-id="${preset.id}">
           <div class="screensaver-saved-main">
             <span class="screensaver-saved-name">${escapeHtml(preset.name)}</span>
-            ${subtitle ? `<span class="screensaver-saved-url">${escapeHtml(subtitle)}</span>` : ''}
           </div>
           ${canDelete ? `<button class="screensaver-delete-button data-preset-delete-button" data-data-preset-delete-id="${preset.id}" type="button" aria-label="删除预设">×</button>` : ''}
         </div>

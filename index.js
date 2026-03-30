@@ -506,7 +506,7 @@ function ensureModal() {
                 data-role="frame"
                 src="${HTML_URL}"
                 title="BLEACH-Phone"
-                loading="lazy"
+                loading="eager"
                 scrolling="no"
                 allowtransparency="true"
             ></iframe>

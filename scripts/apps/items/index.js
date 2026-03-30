@@ -705,9 +705,10 @@ async function generateItemsDataFromApi() {
   const expectedChatId = getCurrentBleachPhoneItemsChatId();
   setItemsGenerationStatus('物品生成中…', 'loading');
   renderActiveItemsWindow();
+  let aiReplyText = '';
   try {
-    const replyText = await requestAiItemsReply();
-    const parsedResult = parseItemsAiResponse(replyText);
+    aiReplyText = await requestAiItemsReply();
+    const parsedResult = parseItemsAiResponse(aiReplyText);
     loadItemsData(parsedResult.items, { render: false });
     const variableSynced = await syncBleachPhoneItemsVariableFromParsedResult(parsedResult, { expectedChatId });
     if (!variableSynced) {
@@ -722,6 +723,9 @@ async function generateItemsDataFromApi() {
       : `生成失败：${String(error?.message || '未知错误').trim() || '未知错误'}`;
     setItemsGenerationStatus(message, 'error');
     console.error('[物品] 生成失败', error);
+    if (aiReplyText) {
+      console.error('[物品] AI 原始回复内容：\n' + aiReplyText);
+    }
     renderActiveItemsWindow();
     return false;
   }

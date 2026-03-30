@@ -75,10 +75,38 @@ function normalizeWeatherParamValue(value, fallback = '') {
   return text || String(fallback || '').trim();
 }
 
-function normalizeWeatherEntry(entry, index = 0, { allowCatalogFallback = true } = {}) {
+function resolveWeatherEntryKey(entry, { date = null } = {}) {
+  if (!entry || typeof entry !== 'object') return '';
+
+  const explicitKey = String(entry.key || '').trim();
+  if (explicitKey && getWeatherSvgMarkup(explicitKey)) {
+    return explicitKey;
+  }
+
+  const descText = String(entry.desc ?? entry.text ?? entry.label ?? '').trim();
+  if (!descText) return '';
+
+  const detectedBaseKey = detectWeatherBaseKeyFromText(descText);
+  if (!detectedBaseKey) return '';
+
+  const resolvedDate = date instanceof Date && !Number.isNaN(date.getTime())
+    ? new Date(date.getTime())
+    : getWeatherTimeSourceDate();
+  const displayKey = resolveWeatherDisplayKeyByTime(detectedBaseKey, { date: resolvedDate });
+  if (displayKey && getWeatherSvgMarkup(displayKey)) {
+    return displayKey;
+  }
+
+  return getWeatherSvgMarkup(detectedBaseKey) ? detectedBaseKey : '';
+}
+
+function normalizeWeatherEntry(entry, index = 0, { allowCatalogFallback = true, timeMeta = null } = {}) {
   if (!entry || typeof entry !== 'object') return null;
-  const key = String(entry.key || '').trim();
-  if (!key || !getWeatherSvgMarkup(key)) return null;
+  const resolvedDate = timeMeta?.sourceDate instanceof Date && !Number.isNaN(timeMeta.sourceDate.getTime())
+    ? new Date(timeMeta.sourceDate.getTime())
+    : null;
+  const key = resolveWeatherEntryKey(entry, { date: resolvedDate });
+  if (!key) return null;
 
   const catalogEntry = allowCatalogFallback ? getWeatherCatalogEntryByKey(key) : null;
   const desc = String(entry.desc ?? catalogEntry?.desc ?? '').trim();
@@ -665,11 +693,12 @@ function parseWeatherAiResponse(rawText = '') {
     throw new Error('weather_json.entries 必须是数组');
   }
 
+  const timeMeta = resolveWeatherTimeMeta(parsedPayload, { fallbackToLocal: true });
   const entries = rawEntries
-    .map((entry, index) => normalizeWeatherEntry(entry, index))
+    .map((entry, index) => normalizeWeatherEntry(entry, index, { timeMeta }))
     .filter(Boolean);
   if (!entries.length) {
-    throw new Error(`天气列表为空，且每个条目至少必须包含字段：${weatherParserConfig.requiredEntryKeys.join(', ')}`);
+    throw new Error('天气列表为空；每个条目至少需要提供可识别的天气信息：key，或可用于推断的 desc');
   }
 
   return {
@@ -677,18 +706,19 @@ function parseWeatherAiResponse(rawText = '') {
     raw: sourceText,
     parsed: parsedPayload,
     candidate: payloadText,
-    timeMeta: resolveWeatherTimeMeta(parsedPayload, { fallbackToLocal: true })
+    timeMeta
   };
 }
 
 function loadWeatherData(entries, { render = true, timeMeta = null } = {}) {
+  const resolvedTimeMeta = resolveWeatherTimeMeta(timeMeta, { fallbackToLocal: true });
   const normalizedEntries = Array.isArray(entries)
-    ? entries.map((entry, index) => normalizeWeatherEntry(entry, index)).filter(Boolean)
+    ? entries.map((entry, index) => normalizeWeatherEntry(entry, index, { timeMeta: resolvedTimeMeta })).filter(Boolean)
     : [];
   if (!normalizedEntries.length) return false;
   weatherRuntimeEntries = normalizedEntries;
   currentWeatherIndex = Math.min(Math.max(currentWeatherIndex, 0), weatherRuntimeEntries.length - 1);
-  weatherRuntimeTimeMeta = resolveWeatherTimeMeta(timeMeta, { fallbackToLocal: true });
+  weatherRuntimeTimeMeta = resolvedTimeMeta;
   currentWeatherDetectedBaseKey = normalizeWeatherDetectedBaseKey(getCurrentWeatherEntry()?.key || '');
   currentWeatherTimeBucket = getWeatherTimeBucket();
   if (currentWeatherDetectedBaseKey) {
@@ -1142,9 +1172,10 @@ async function generateWeatherDataFromApi() {
   const expectedChatId = getCurrentBleachPhoneWeatherChatId();
   setWeatherGenerationStatus('天气生成中…', 'loading');
   renderActiveWeatherWindow();
+  let aiReplyText = '';
   try {
-    const replyText = await requestAiWeatherReply();
-    const parsedResult = parseWeatherAiResponse(replyText);
+    aiReplyText = await requestAiWeatherReply();
+    const parsedResult = parseWeatherAiResponse(aiReplyText);
     loadWeatherData(parsedResult.entries, { render: false, timeMeta: parsedResult.timeMeta });
     await syncWeatherByLatestAiText({ render: false, persist: false, expectedChatId });
     const variableSynced = await syncBleachPhoneWeatherVariableFromParsedResult(parsedResult, { expectedChatId });
@@ -1160,6 +1191,9 @@ async function generateWeatherDataFromApi() {
       : `生成失败：${String(error?.message || '未知错误').trim() || '未知错误'}`;
     setWeatherGenerationStatus(message, 'error');
     console.error('[天气] 生成失败', error);
+    if (aiReplyText) {
+      console.error('[天气] AI 原始回复内容：\n' + aiReplyText);
+    }
     renderActiveWeatherWindow();
     return false;
   }

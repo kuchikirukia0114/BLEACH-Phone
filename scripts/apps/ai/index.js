@@ -34,16 +34,18 @@ const BLEACH_PHONE_CHATS_VARIABLE_NAME = 'bleach_phone_chats';
 const BLEACH_PHONE_CHATS_SUMMARIZED_VARIABLE_NAME = 'bleach_phone_chats_summarized';
 const BLEACH_PHONE_MAP_VARIABLE_NAME = 'bleach_phone_map_json';
 const BLEACH_PHONE_ITEMS_VARIABLE_NAME = 'bleach_phone_items_json';
-const BLEACH_PHONE_RADIO_VARIABLE_NAME = 'bleach_phone_radio_json';
+const BLEACH_PHONE_NEWS_VARIABLE_NAME = 'bleach_phone_news_json';
+const BLEACH_PHONE_NEWS_INFO_SCOPE = 'news_json';
 const BLEACH_PHONE_CHARS_VARIABLE_NAME = 'bleach_phone_chars_json';
 const BLEACH_PHONE_PRESET_WEATHER_VARIABLE_NAME = 'bleach_phone_weather_json';
 const BLEACH_PHONE_PRESET_DATETIME_VARIABLE_NAME = 'bleach_phone_datetime';
 const BLEACH_PHONE_MAP_INFO_SOURCE_ID = '__map_info__';
 const BLEACH_PHONE_ITEMS_INFO_SOURCE_ID = '__items_current_block__';
-const BLEACH_PHONE_RADIO_INFO_SOURCE_ID = '__radio_current_block__';
+const BLEACH_PHONE_NEWS_INFO_SOURCE_ID = '__news_current_block__';
 const BLEACH_PHONE_CHARS_INFO_SOURCE_ID = '__chars_current_block__';
 const BLEACH_PHONE_DATETIME_INFO_SOURCE_ID = '__datetime_current_block__';
 const BLEACH_PHONE_WEATHER_INFO_SOURCE_ID = '__weather_current_block__';
+const BLEACH_PHONE_ST_USER_INFO_SOURCE_ID = '__st_user_info__';
 let isBleachPhoneChatsVariableEventsBound = false;
 let isBleachPhoneChatGenerationEventsBound = false;
 let aiReplyChatScheduledTimers = [];
@@ -769,8 +771,10 @@ function parseAiReplyChatResponse(replyText, fallbackContact = null, { chatId } 
 function normalizeSTMainChatMessages(rawMessages) {
   if (!Array.isArray(rawMessages)) return [];
   return rawMessages.map((message) => {
-    const rawRole = String(message?.role || '').toLowerCase();
-    const role = rawRole === 'user' || message?.is_user ? 'user' : (rawRole === 'assistant' || rawRole === 'model' ? 'assistant' : '');
+    const rawRole = String(message?.role || '').trim().toLowerCase();
+    const isUserMessage = rawRole === 'user' || message?.is_user === true;
+    const isAssistantMessage = rawRole === 'assistant' || rawRole === 'model' || message?.is_user === false;
+    const role = isUserMessage ? 'user' : (isAssistantMessage ? 'assistant' : '');
     return {
       role,
       content: getTextFromSTMessage(message)
@@ -999,6 +1003,10 @@ function closeAiModelEditor() {
 }
 
 function openAiMainChatConfig() {
+  const nextSettings = normalizeAiSettings(aiSettings);
+  pendingAiMainChatContextN = nextSettings.mainChatContextN;
+  pendingAiMainChatUserN = nextSettings.mainChatUserN;
+  pendingAiMainChatXmlRules = normalizeAiMainChatRules(nextSettings.mainChatXmlRules);
   settingsView = 'aiMainChat';
   if (currentAppKey === 'settings') {
     renderAppWindow('settings');
@@ -1395,9 +1403,9 @@ function getAiPresetInfoSources() {
       subtitle: '当前 items_json'
     },
     {
-      id: BLEACH_PHONE_RADIO_INFO_SOURCE_ID,
-      name: '广播信息',
-      subtitle: '当前 radio_json'
+      id: BLEACH_PHONE_NEWS_INFO_SOURCE_ID,
+      name: '新闻信息',
+      subtitle: '当前 news_json'
     },
     {
       id: BLEACH_PHONE_CHARS_INFO_SOURCE_ID,
@@ -1413,6 +1421,11 @@ function getAiPresetInfoSources() {
       id: BLEACH_PHONE_WEATHER_INFO_SOURCE_ID,
       name: '天气信息',
       subtitle: '当前 weather_json'
+    },
+    {
+      id: BLEACH_PHONE_ST_USER_INFO_SOURCE_ID,
+      name: '酒馆用户信息',
+      subtitle: '当前 user 名字与 persona 信息'
     },
     {
       id: '__sms_chat_history__',
@@ -1462,11 +1475,11 @@ function isAiPresetItemsInfoSource(sourceId, sourceScope = '') {
     || normalizedScope === 'items_json';
 }
 
-function isAiPresetRadioInfoSource(sourceId, sourceScope = '') {
+function isAiPresetNewsInfoSource(sourceId, sourceScope = '') {
   const normalizedId = String(sourceId || '').trim();
   const normalizedScope = String(sourceScope || '').trim();
-  return normalizedId === BLEACH_PHONE_RADIO_INFO_SOURCE_ID
-    || normalizedScope === 'radio_json';
+  return normalizedId === BLEACH_PHONE_NEWS_INFO_SOURCE_ID
+    || normalizedScope === BLEACH_PHONE_NEWS_INFO_SCOPE;
 }
 
 function isAiPresetCharsInfoSource(sourceId, sourceScope = '') {
@@ -1490,15 +1503,23 @@ function isAiPresetWeatherInfoSource(sourceId, sourceScope = '') {
     || normalizedScope === 'weather_json';
 }
 
+function isAiPresetStUserInfoSource(sourceId, sourceScope = '') {
+  const normalizedId = String(sourceId || '').trim();
+  const normalizedScope = String(sourceScope || '').trim();
+  return normalizedId === BLEACH_PHONE_ST_USER_INFO_SOURCE_ID
+    || normalizedScope === 'st_user_info';
+}
+
 function getAiPresetInfoSourceScope(sourceId = '', sourceScope = '') {
   const normalizedScope = String(sourceScope || '').trim();
   if (normalizedScope) return normalizedScope;
   if (isAiPresetMapInfoSource(sourceId)) return 'map_json';
   if (isAiPresetItemsInfoSource(sourceId)) return 'items_json';
-  if (isAiPresetRadioInfoSource(sourceId)) return 'radio_json';
+  if (isAiPresetNewsInfoSource(sourceId)) return BLEACH_PHONE_NEWS_INFO_SCOPE;
   if (isAiPresetCharsInfoSource(sourceId)) return 'chars_json';
   if (isAiPresetDateTimeInfoSource(sourceId)) return 'phone_datetime';
   if (isAiPresetWeatherInfoSource(sourceId)) return 'weather_json';
+  if (isAiPresetStUserInfoSource(sourceId)) return 'st_user_info';
   if (isAiPresetSmsChatHistorySource(sourceId)) return 'sms_chat_history';
   if (isAiPresetPendingUserMessagesSource(sourceId)) return 'pending_user_messages';
   return '';
@@ -1578,8 +1599,8 @@ function getAiPresetItemsInfoSlotText() {
   return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_ITEMS_VARIABLE_NAME, '物品当前块');
 }
 
-function getAiPresetRadioInfoSlotText() {
-  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_RADIO_VARIABLE_NAME, '广播当前块');
+function getAiPresetNewsInfoSlotText() {
+  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_NEWS_VARIABLE_NAME, '新闻当前块');
 }
 
 function getAiPresetCharsInfoSlotText() {
@@ -1587,11 +1608,87 @@ function getAiPresetCharsInfoSlotText() {
 }
 
 function getAiPresetDateTimeInfoSlotText() {
-  return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_PRESET_DATETIME_VARIABLE_NAME, '时间当前块');
+  try {
+    const ctx = getSillyTavernContext();
+    const variableReader = ctx?.variables?.local?.get;
+    if (typeof variableReader !== 'function') return '';
+    const rawValue = variableReader(BLEACH_PHONE_PRESET_DATETIME_VARIABLE_NAME);
+    if (rawValue == null || rawValue === '') return '';
+
+    let payload = rawValue;
+    if (typeof rawValue === 'string') {
+      const trimmedValue = rawValue.trim();
+      try {
+        payload = JSON.parse(trimmedValue);
+      } catch (error) {
+        return '';
+      }
+    }
+
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return '';
+    }
+
+    const source = String(payload.source ?? payload.time_source ?? payload.timeSource ?? '').trim().toLowerCase();
+    if (source === 'system') {
+      return '';
+    }
+
+    return JSON.stringify(payload, null, 2);
+  } catch (error) {
+    console.warn('[预设] 时间当前块读取失败', error);
+    return '';
+  }
 }
 
 function getAiPresetWeatherInfoSlotText() {
   return getAiPresetCurrentJsonSlotText(BLEACH_PHONE_PRESET_WEATHER_VARIABLE_NAME, '天气当前块');
+}
+
+function normalizeAiPresetMacroResult(result = '', template = '') {
+  const normalizedResult = String(result || '').trim();
+  const normalizedTemplate = String(template || '').trim();
+  if (!normalizedResult) return '';
+  if (normalizedTemplate && normalizedResult === normalizedTemplate) return '';
+  if (/\{\{[^{}]+\}\}/.test(normalizedResult)) return '';
+  return normalizedResult;
+}
+
+function getAiPresetExpandedMacroText(template = '') {
+  const normalizedTemplate = String(template || '').trim();
+  if (!normalizedTemplate) return '';
+  try {
+    const ctx = getSillyTavernContext();
+    if (typeof ctx?.substituteParamsExtended === 'function') {
+      const result = normalizeAiPresetMacroResult(ctx.substituteParamsExtended(normalizedTemplate), normalizedTemplate);
+      if (result) return result;
+    }
+    if (typeof ctx?.substituteParams === 'function') {
+      const result = normalizeAiPresetMacroResult(ctx.substituteParams(normalizedTemplate), normalizedTemplate);
+      if (result) return result;
+    }
+  } catch (error) {
+    console.warn('[预设] 宏展开失败', error);
+  }
+  return '';
+}
+
+function getAiPresetStUserInfoSlotText() {
+  const ctx = getSillyTavernContext();
+  const userName = String(ctx?.name1 || '').trim() || 'user';
+  const userInfo = [
+    ctx?.personaDescription,
+    ctx?.persona,
+    ctx?.chatMetadata?.persona_description,
+    ctx?.chatMetadata?.personaDescription,
+    ctx?.chatMetadata?.persona,
+    getAiPresetExpandedMacroText('{{persona}}'),
+    getAiPresetExpandedMacroText('{{persona_description}}')
+  ].map((value) => String(value || '').trim()).find(Boolean) || '';
+  return JSON.stringify({
+    user_name: userName,
+    user_inf: userInfo
+  }, null, 2);
 }
 
 async function loadAiPresetWorldBookOptions() {
@@ -1707,6 +1804,21 @@ function openAiPresetInfoSourcePicker(blockIndex = -1) {
   renderActiveAiPresetWorkspace();
 }
 
+function getAiPresetConfiguredWorldBookOptions(settingsSource = aiSettings) {
+  return getAiWorldBookSettingsEntries(settingsSource).map((entry, index) => ({
+    id: String(entry?.id || '').trim() || `configured_worldbook_${index}`,
+    name: String(entry?.name || '').trim(),
+    scope: String(entry?.scope || 'global').trim() || 'global',
+    ownerId: String(entry?.ownerId || '').trim()
+  })).filter((entry) => entry.name);
+}
+
+function getAiPresetWorldBookPickerOptions() {
+  return settingsView === 'worldBookPicker'
+    ? aiPresetWorldBookOptions
+    : getAiPresetConfiguredWorldBookOptions(aiSettings);
+}
+
 function openAiPresetWorldBookPicker(blockIndex = -1) {
   const targetIndex = Number(blockIndex);
   const blocks = normalizeAiPresetBlocks(pendingAiPresetBlocks);
@@ -1716,19 +1828,19 @@ function openAiPresetWorldBookPicker(blockIndex = -1) {
     && String(blocks[targetIndex]?.role || '').trim() === '_worldinfo'
       ? blocks[targetIndex]
       : null;
+  const options = getAiPresetConfiguredWorldBookOptions(aiSettings);
   editingAiPresetBlockIndex = targetBlock ? targetIndex : -1;
   const matchedIndex = targetBlock
-    ? aiPresetWorldBookOptions.findIndex((source) => source.id === targetBlock.sourceId || (source.name === targetBlock.sourceName && source.scope === targetBlock.sourceScope))
+    ? options.findIndex((source) => source.id === targetBlock.sourceId || (source.name === targetBlock.sourceName && source.scope === targetBlock.sourceScope))
     : -1;
-  selectedAiPresetWorldBookIndex = aiPresetWorldBookOptions.length
+  selectedAiPresetWorldBookIndex = options.length
     ? (matchedIndex >= 0
       ? matchedIndex
-      : Math.min(Math.max(selectedAiPresetWorldBookIndex, 0), aiPresetWorldBookOptions.length - 1))
+      : Math.min(Math.max(selectedAiPresetWorldBookIndex, 0), options.length - 1))
     : -1;
   pendingAiPresetBlockDraft = null;
   settingsView = 'aiPromptWorldBookPicker';
   renderActiveAiPresetWorkspace();
-  loadAiPresetWorldBookOptions();
 }
 
 function openAiPresetBlockEditor(index) {
@@ -1870,8 +1982,9 @@ function cycleAiPresetInfoMessageRole(step = 1, sourceIndex = null) {
 }
 
 function confirmAiPresetWorldBookSelection() {
-  if (!aiPresetWorldBookOptions.length || selectedAiPresetWorldBookIndex < 0) return;
-  const source = aiPresetWorldBookOptions[Math.min(selectedAiPresetWorldBookIndex, aiPresetWorldBookOptions.length - 1)];
+  const options = getAiPresetConfiguredWorldBookOptions(aiSettings);
+  if (!options.length || selectedAiPresetWorldBookIndex < 0) return;
+  const source = options[Math.min(selectedAiPresetWorldBookIndex, options.length - 1)];
   const nextBlock = {
     role: '_worldinfo',
     name: `世界书槽 · ${source.name}`,
@@ -2185,15 +2298,16 @@ function renderAiPresetInfoSourcePickerContent() {
 }
 
 function renderAiPresetWorldBookPickerContent() {
-  if (aiPresetWorldBookStatus && !aiPresetWorldBookOptions.length) {
+  const options = getAiPresetWorldBookPickerOptions();
+  if (settingsView === 'worldBookPicker' && aiPresetWorldBookStatus && !options.length) {
     return `<div class="app-subline ai-preset-empty-line">${escapeHtml(aiPresetWorldBookStatus)}</div>`;
   }
-  if (!aiPresetWorldBookOptions.length) {
-    return '<div class="app-subline ai-preset-empty-line">暂无世界书</div>';
+  if (!options.length) {
+    return `<div class="app-subline ai-preset-empty-line">${escapeHtml(settingsView === 'worldBookPicker' ? '暂无世界书' : '请先在设置/世界书中添加世界书')}</div>`;
   }
   return `
     <div class="screensaver-saved-list ai-preset-picker-list" id="ai-preset-worldbook-list">
-      ${aiPresetWorldBookOptions.map((source, index) => `
+      ${options.map((source, index) => `
         <div class="screensaver-saved-item ai-preset-picker-item ${selectedAiPresetWorldBookIndex === index ? 'is-selected' : ''}" data-ai-preset-worldbook-index="${index}">
           <div class="screensaver-saved-main">
             <span class="screensaver-saved-name">${escapeHtml(source.name)}</span>
@@ -2306,7 +2420,8 @@ async function openAiPresetPreviewWithBlock(targetBlock, title = '', returnView 
       aiPresetPreviewText = getAiPresetInfoSlotText(targetBlock, getCurrentAiContact()) || '暂无内容';
       aiPresetPreviewStatus = aiPresetPreviewText ? `已展开信息槽内容 · ${getAiPresetInfoMessageRoleLabel(targetBlock)}` : '暂无内容';
     } else if (role === '_worldinfo') {
-      aiPresetPreviewText = await getAiPresetWorldInfoSlotText(targetBlock) || '暂无内容';
+      const pendingTargets = getAiPendingTargetsFromHistory();
+      aiPresetPreviewText = await getAiPresetWorldInfoSlotText(targetBlock, getCurrentAiContact(), { pendingTargets }) || '暂无内容';
       aiPresetPreviewStatus = aiPresetPreviewText ? '已展开世界书内容' : '暂无内容';
     } else {
       aiPresetPreviewText = String(targetBlock?.text || '').trim() || '暂无内容';
@@ -2382,7 +2497,8 @@ async function openAiPresetInfoSourcePreview() {
 }
 
 async function openAiPresetWorldBookPreview() {
-  const source = aiPresetWorldBookOptions[selectedAiPresetWorldBookIndex] || null;
+  const options = getAiPresetWorldBookPickerOptions();
+  const source = options[selectedAiPresetWorldBookIndex] || null;
   if (!source) return false;
   return openAiPresetPreviewWithBlock({
     role: '_worldinfo',
@@ -2500,8 +2616,8 @@ function getAiPresetInfoSlotText(block, activeContact = null, { pendingTargets =
   if (isAiPresetItemsInfoSource(sourceId, sourceScope)) {
     return getAiPresetItemsInfoSlotText();
   }
-  if (isAiPresetRadioInfoSource(sourceId, sourceScope)) {
-    return getAiPresetRadioInfoSlotText();
+  if (isAiPresetNewsInfoSource(sourceId, sourceScope)) {
+    return getAiPresetNewsInfoSlotText();
   }
   if (isAiPresetCharsInfoSource(sourceId, sourceScope)) {
     return getAiPresetCharsInfoSlotText();
@@ -2511,6 +2627,9 @@ function getAiPresetInfoSlotText(block, activeContact = null, { pendingTargets =
   }
   if (isAiPresetWeatherInfoSource(sourceId, sourceScope)) {
     return getAiPresetWeatherInfoSlotText();
+  }
+  if (isAiPresetStUserInfoSource(sourceId, sourceScope)) {
+    return getAiPresetStUserInfoSlotText();
   }
   if (isAiPresetSmsChatHistorySource(sourceId, sourceScope)) {
     const smsHistoryEntries = getAiSmsHistoryEntries(dedupeAiContacts(aiContacts));
@@ -2531,15 +2650,24 @@ function getAiPresetInfoSlotText(block, activeContact = null, { pendingTargets =
   return roleInfoEntry ? JSON.stringify([roleInfoEntry], null, 2) : '[]';
 }
 
-async function getAiPresetWorldInfoSlotText(block) {
+async function getAiPresetWorldInfoSlotText(block, activeContact = null, { pendingTargets = [] } = {}) {
+  const sourceId = String(block?.sourceId || '').trim();
   const sourceName = String(block?.sourceName || '').trim();
+  const sourceScope = String(block?.sourceScope || '').trim();
+  const configuredEntries = getAiWorldBookSettingsEntries(aiSettings);
+  const configuredEntry = configuredEntries.find((entry) => String(entry?.id || '').trim() === sourceId)
+    || configuredEntries.find((entry) => String(entry?.name || '').trim() === sourceName && String(entry?.scope || '').trim() === sourceScope)
+    || null;
+  if (configuredEntry) {
+    return buildAiWorldBookTriggerMessage(configuredEntry, activeContact, { pendingTargets });
+  }
   if (!sourceName) return '';
   const stApi = getSTAPI();
   if (typeof stApi?.worldBook?.get !== 'function') return '';
   try {
     const result = await stApi.worldBook.get({
       name: sourceName,
-      scope: String(block?.sourceScope || '').trim() || undefined
+      scope: sourceScope || undefined
     });
     const entries = Array.isArray(result?.worldBook?.entries) ? result.worldBook.entries : [];
     const enabledEntries = entries.filter((entry) => entry?.enabled !== false && String(entry?.content || '').trim());
@@ -2551,6 +2679,89 @@ async function getAiPresetWorldInfoSlotText(block) {
     })].filter(Boolean).join('\n');
   } catch (error) {
     console.warn('[短信预设] 读取世界书失败', error);
+    return '';
+  }
+}
+
+function getAiWorldBookSettingsEntries(settingsSource = aiSettings) {
+  const settings = normalizeAiSettings(settingsSource);
+  return Array.isArray(settings.worldBookEntries) ? settings.worldBookEntries : [];
+}
+
+function getAiWorldBookEntryKeywords(entry = null) {
+  if (!entry || typeof entry !== 'object') return [];
+  return [
+    ...(Array.isArray(entry.key) ? entry.key : []),
+    ...(Array.isArray(entry.secondaryKey) ? entry.secondaryKey : [])
+  ]
+    .map((keyword) => String(keyword || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAiWorldBookKeywordMatched(contextText = '', keyword = '') {
+  const normalizedContext = String(contextText || '').trim().toLowerCase();
+  const normalizedKeyword = String(keyword || '').trim().toLowerCase();
+  if (!normalizedContext || !normalizedKeyword) return false;
+  return normalizedContext.includes(normalizedKeyword);
+}
+
+function getAiWorldBookInfoBindingText(binding = null, activeContact = null, { pendingTargets = [] } = {}) {
+  const sourceId = String(binding?.sourceId || '').trim();
+  if (!sourceId) return '';
+  return getAiPresetInfoSlotText({
+    sourceId,
+    sourceScope: String(binding?.sourceScope || '').trim()
+  }, activeContact, { pendingTargets });
+}
+
+async function buildAiWorldBookTriggerMessage(entry = null, activeContact = null, { pendingTargets = [] } = {}) {
+  if (!entry?.name) return '';
+  const stApi = getSTAPI();
+  if (typeof stApi?.worldBook?.get !== 'function') return '';
+  const contextParts = [];
+  try {
+    const mainChatMessages = await buildAiMainChatHistoryMessages({
+      ...aiSettings,
+      mainChatContextN: entry?.mainChatContextN === '' || entry?.mainChatContextN == null ? '10' : String(entry.mainChatContextN),
+      mainChatUserN: entry?.mainChatUserN === '' || entry?.mainChatUserN == null ? '' : String(entry.mainChatUserN),
+      mainChatXmlRules: normalizeAiMainChatRules(entry?.mainChatXmlRules)
+    });
+    if (mainChatMessages.length) {
+      contextParts.push(mainChatMessages.map((message) => String(message?.content || '').trim()).filter(Boolean).join('\n\n'));
+    }
+  } catch (error) {
+    console.warn('[世界书触发] 读取主聊天上下文失败', error);
+  }
+  const infoBindings = Array.isArray(entry?.infoSourceBindings) ? entry.infoSourceBindings : [];
+  for (const binding of infoBindings) {
+    const content = getAiWorldBookInfoBindingText(binding, activeContact, { pendingTargets });
+    if (content) {
+      contextParts.push(content);
+    }
+  }
+  const contextText = contextParts.filter(Boolean).join('\n\n').trim();
+  if (!contextText) return '';
+  try {
+    const result = await stApi.worldBook.get({
+      name: String(entry.name || '').trim(),
+      scope: String(entry.scope || '').trim() || undefined
+    });
+    const worldBookEntries = Array.isArray(result?.worldBook?.entries) ? result.worldBook.entries : [];
+    const matchedEntries = worldBookEntries
+      .filter((worldBookEntry) => worldBookEntry?.enabled !== false && String(worldBookEntry?.content || '').trim())
+      .filter((worldBookEntry) => getAiWorldBookEntryKeywords(worldBookEntry).some((keyword) => isAiWorldBookKeywordMatched(contextText, keyword)))
+      .slice(0, 20);
+    if (!matchedEntries.length) return '';
+    return [
+      `世界书触发：${result?.worldBook?.name || entry.name}`,
+      ...matchedEntries.map((worldBookEntry) => {
+        const entryName = String(worldBookEntry?.name || '').trim();
+        const entryContent = String(worldBookEntry?.content || '').trim();
+        return entryName ? `${entryName}：${entryContent}` : entryContent;
+      })
+    ].filter(Boolean).join('\n');
+  } catch (error) {
+    console.warn('[世界书触发] 读取世界书失败', error);
     return '';
   }
 }
@@ -2582,10 +2793,11 @@ async function buildAiMessagesFromPreset(contact, userText, presetEntry, { pendi
       continue;
     }
     if (role === '_worldinfo') {
-      const content = await getAiPresetWorldInfoSlotText(block);
+      const content = await getAiPresetWorldInfoSlotText(block, contact, { pendingTargets });
       if (content) messages.push({ role: 'system', content });
     }
   }
+  // 世界书内容仅在预设显式插入“世界书槽”时注入，避免设置中的世界书被全局追加到提示词末尾。
   const pendingPayload = buildAiPendingTargetsPayload(pendingTargets);
   const finalUserContent = userText.trim() || (
     pendingPayload.length && !hasAiPresetPendingUserMessagesInfoBlock(blocks)
@@ -2777,6 +2989,24 @@ function isAssistantLikeSTMessage(message) {
   return message?.is_user === false;
 }
 
+function getRawStChatMessagesForSmsSummary() {
+  const ctx = getSillyTavernContext();
+  return Array.isArray(ctx?.chat) ? ctx.chat : [];
+}
+
+function isExplicitlyStreamingStChatMessage(message = null) {
+  if (!message || typeof message !== 'object') return false;
+  const candidateObjects = [message, message?.extra].filter((item) => item && typeof item === 'object');
+  return candidateObjects.some((item) => {
+    if (item.streaming === true || item.isStreaming === true || item.is_streaming === true) {
+      return true;
+    }
+    const hasGenStarted = item.gen_started != null || item.genStarted != null;
+    const hasGenFinished = item.gen_finished != null || item.genFinished != null;
+    return hasGenStarted && !hasGenFinished;
+  });
+}
+
 async function getStChatMessagesForSmsSummary() {
   const stApi = getSTAPI();
   if (stApi?.chatHistory?.list) {
@@ -2787,8 +3017,7 @@ async function getStChatMessagesForSmsSummary() {
       console.warn('[短信总结] 读取酒馆聊天楼层失败，改用上下文回退', error);
     }
   }
-  const ctx = getSillyTavernContext();
-  return Array.isArray(ctx?.chat) ? ctx.chat : [];
+  return getRawStChatMessagesForSmsSummary();
 }
 
 async function getSmsSummaryTargetMessageInfo() {
@@ -2802,9 +3031,15 @@ async function getSmsSummaryTargetMessageInfo() {
   if (!assistantIndexes.length) {
     return { index: -1, message: null };
   }
-  const targetIndex = isStGenerationRunning && assistantIndexes.length > 1
+  const latestAssistantIndex = assistantIndexes[assistantIndexes.length - 1];
+  const latestAssistantMessage = messages[latestAssistantIndex] || null;
+  const latestAssistantRawMessage = getRawStChatMessagesForSmsSummary()[latestAssistantIndex] || null;
+  const shouldFallbackToPreviousAssistant = assistantIndexes.length > 1
+    && isStGenerationRunning
+    && (isExplicitlyStreamingStChatMessage(latestAssistantMessage) || isExplicitlyStreamingStChatMessage(latestAssistantRawMessage));
+  const targetIndex = shouldFallbackToPreviousAssistant
     ? assistantIndexes[assistantIndexes.length - 2]
-    : assistantIndexes[assistantIndexes.length - 1];
+    : latestAssistantIndex;
   return {
     index: targetIndex,
     message: messages[targetIndex] || null

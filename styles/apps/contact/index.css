@@ -11,11 +11,19 @@
     align-items: center;
     gap: calc(6px * var(--ui-font-scale));
     padding: calc(6px * var(--ui-font-scale)) calc(7px * var(--ui-font-scale));
-    border: 1px solid rgba(205, 245, 255, 0.24);
-    background: rgba(10, 36, 50, 0.26);
-    color: rgba(225, 255, 255, 0.88);
+    border: 1px solid var(--window-box-border);
+    background: var(--window-list-bg);
+    color: var(--window-text);
     font-size: calc(11px * var(--ui-font-scale));
     text-align: left;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+  }
+  body.theme-black .contact-saved-item {
+    background: linear-gradient(145deg, rgba(8, 13, 24, 0.9), rgba(5, 7, 13, 0.95));
+    border-color: #121a2b;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02);
+    border-radius: 2px;
   }
   .contact-editor-form {
     height: 100%;
@@ -25,9 +33,20 @@
     min-height: 0;
   }
   .contact-saved-item.is-selected {
-    background: rgba(184, 255, 255, 0.2);
-    border-color: rgba(214, 255, 255, 0.58);
-    color: rgba(248, 255, 255, 0.98);
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px var(--menu-hover-shadow);
+    color: var(--accent);
+  }
+  body.theme-black .contact-saved-item.is-selected {
+    background: linear-gradient(145deg, rgba(18, 43, 84, 0.4), rgba(7, 11, 20, 0.8));
+    border-color: #4da6ff;
+    box-shadow:
+      inset 0 0 0 1px rgba(77, 166, 255, 0.15),
+      0 0 8px rgba(109, 178, 255, 0.25);
+    color: #bce1ff;
+  }
+  body.theme-black .contact-saved-item.is-selected .contact-saved-name {
+    color: #bce1ff;
   }
   body.theme-white .contact-saved-item {
     border-color: #ddd1c0;
@@ -39,6 +58,7 @@
     background: linear-gradient(135deg, rgba(255, 253, 249, 0.995) 0%, rgba(244, 238, 229, 0.995) 54%, rgba(236, 227, 213, 0.995) 100%);
     border-color: #cfbea8;
     color: #8b735b;
+    box-shadow: none;
   }
   .contact-saved-main {
     flex: 1;
@@ -52,17 +72,26 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: calc(11px * var(--ui-font-scale));
-    letter-spacing: 0.02em;
+    letter-spacing: 0.6px;
+    font-weight: bold;
+  }
+  body.theme-black .contact-saved-name {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
   .contact-saved-preview {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: rgba(220, 245, 245, 0.6);
+    color: var(--window-soft);
     font-size: calc(9px * var(--ui-font-scale));
+    opacity: 0.85;
   }
   .contact-saved-item.is-selected .contact-saved-preview {
-    color: rgba(244, 255, 255, 0.82);
+    color: var(--accent-soft);
+  }
+  body.theme-black .contact-saved-item.is-selected .contact-saved-preview {
+    color: #9ed0ff;
+    text-shadow: 0 0 4px rgba(158, 208, 255, 0.4);
   }
   body.theme-white .contact-saved-name {
     color: #92795e;
@@ -109,14 +138,54 @@
     box-shadow: none;
   }
   body.theme-black .contact-saved-item[data-ai-contact-index].is-selected::before {
-    background: #9d1f26;
-    box-shadow: calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 #580d13;
+    background: #4da6ff;
+    box-shadow: calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 #215eb3;
   }
   body.theme-black .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-name {
-    color: #f1ede2;
+    color: #bce1ff;
   }
   body.theme-black .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-preview {
     color: var(--window-soft);
+  }
+
+  body.theme-black .app-window:not(.sms-app) .contact-saved-item[data-ai-contact-index].is-selected {
+    background: transparent;
+    border-color: #9d7dff;
+    box-shadow: calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 #5a42a8;
+  }
+
+  body.theme-black .app-window:not(.sms-app) .contact-saved-item[data-ai-contact-index].is-selected::before {
+    background: #9d7dff;
+    box-shadow: calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 #5a42a8;
+  }
+
+  body.theme-black .app-window:not(.sms-app) .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-name {
+    color: #79e2bb;
+  }
+
+  body.theme-black .app-window:not(.sms-app) .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-preview {
+    color: var(--window-soft);
+  }
+
+  body.theme-black .app-window.sms-app .contact-saved-item[data-ai-contact-index] .contact-saved-name {
+    color: var(--window-soft);
+  }
+
+  body.theme-black .app-window.sms-app .contact-saved-item[data-ai-contact-index] .contact-saved-preview {
+    color: #f1ede2;
+  }
+
+  body.theme-black .app-window.sms-app .contact-saved-item[data-ai-contact-index].is-selected::before {
+    background: #9d7dff;
+    box-shadow: calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 #5a42a8;
+  }
+
+  body.theme-black .app-window.sms-app .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-name {
+    color: #dfcdff;
+  }
+
+  body.theme-black .app-window.sms-app .contact-saved-item[data-ai-contact-index].is-selected .contact-saved-preview {
+    color: #bce1ff;
   }
   .contact-delete-button {
     width: calc(18px * var(--ui-font-scale));
@@ -243,14 +312,14 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
   body.theme-black .contact-chat-bubble.is-selected .contact-chat-media-box {
-    border-color: rgba(157, 31, 38, 0.4);
-    background: rgba(157, 31, 38, 0.1);
+    border-color: rgba(77, 166, 255, 0.4);
+    background: rgba(77, 166, 255, 0.1);
   }
   body.theme-black .media-box-icon {
-    stroke: #c8d4e6;
+    stroke: #728fb5;
   }
   body.theme-black .contact-chat-bubble.is-selected .media-box-icon {
-    stroke: #f1ede2;
+    stroke: #bce1ff;
   }
   body.theme-white .contact-chat-media-box {
     background: #f0f2f5;
@@ -391,10 +460,10 @@
     background: #141c2c;
   }
   body.theme-black .modal-style-device .retro-close-icon {
-    stroke: #8fa8d6;
+    stroke: #728fb5;
   }
   body.theme-black .modal-style-device .retro-close-btn:active .retro-close-icon {
-    stroke: #d83a42;
+    stroke: #6db2ff;
   }
   body.theme-white .modal-style-device .retro-close-btn {
     background: #e8ded5;
@@ -491,32 +560,32 @@
   }
   body.theme-black .contact-chat-bubble,
   body.theme-black .contact-chat-row.is-user .contact-chat-bubble {
-    background: linear-gradient(180deg, #10131a 0%, #06080d 100%);
+    background: linear-gradient(180deg, #111624 0%, #080a12 100%);
     border-width: 1px;
-    border-color: #1b4696;
-    color: #f1ede2;
+    border-color: #1d437a;
+    color: #bce1ff;
     box-shadow:
-      0 0 0 calc(1px * var(--ui-font-scale)) rgba(69, 115, 204, 0.14) inset,
-      calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 rgba(27, 70, 150, 0.9),
-      calc(1.5px * var(--ui-font-scale)) calc(1.5px * var(--ui-font-scale)) 0 rgba(13, 34, 76, 0.92);
+      0 0 0 calc(1px * var(--ui-font-scale)) rgba(109, 178, 255, 0.14) inset,
+      calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 rgba(29, 67, 122, 0.9),
+      calc(1.5px * var(--ui-font-scale)) calc(1.5px * var(--ui-font-scale)) 0 rgba(18, 43, 84, 0.92);
   }
   body.theme-black .contact-chat-text {
-    color: #f1ede2;
+    color: #bce1ff;
     font-style: normal;
     transform: none;
   }
   body.theme-black .contact-chat-bubble.is-selected,
   body.theme-black .contact-chat-row.is-user .contact-chat-bubble.is-selected {
-    background: linear-gradient(180deg, #181216 0%, #0f090b 100%);
+    background: linear-gradient(180deg, #1a2236 0%, #0c101a 100%);
     border-width: 1px;
-    border-color: #9d1f26;
+    border-color: #4da6ff;
     box-shadow:
-      0 0 0 calc(1px * var(--ui-font-scale)) rgba(216, 58, 66, 0.12) inset,
-      calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 rgba(157, 31, 38, 0.9),
-      calc(1.5px * var(--ui-font-scale)) calc(1.5px * var(--ui-font-scale)) 0 rgba(88, 13, 19, 0.92);
+      0 0 0 calc(1px * var(--ui-font-scale)) rgba(158, 208, 255, 0.12) inset,
+      calc(1px * var(--ui-font-scale)) calc(1px * var(--ui-font-scale)) 0 rgba(77, 166, 255, 0.9),
+      calc(1.5px * var(--ui-font-scale)) calc(1.5px * var(--ui-font-scale)) 0 rgba(33, 94, 179, 0.92);
   }
   body.theme-black .contact-chat-bubble.is-selected .contact-chat-text {
-    color: #d83a42;
+    color: #9ed0ff;
   }
   .contact-chat-status {
     min-height: calc(10px * var(--ui-font-scale));

@@ -320,3 +320,42 @@
     transform-origin: center;
   }
 
+  body.theme-black .network-portrait-progress-row {
+    background: transparent;
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  body.theme-black .network-landscape-progress {
+    background: transparent;
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  body.theme-black .network-portrait-time,
+  body.theme-black .network-landscape-time {
+    color: #c8b2f2;
+    text-shadow: 0 0 4px rgba(140, 104, 216, 0.24);
+  }
+
+  body.theme-black .network-portrait-progress-track,
+  body.theme-black .network-landscape-progress-track {
+    background: rgba(96, 72, 156, 0.42);
+  }
+
+  body.theme-black .network-portrait-progress-fill,
+  body.theme-black .network-landscape-progress-fill {
+    background: #8c68d8;
+  }
+
+  body.theme-black .network-portrait-progress-thumb,
+  body.theme-black .network-landscape-progress-thumb {
+    background: #c1a8f0;
+    box-shadow: 0 0 6px rgba(140, 104, 216, 0.38);
+  }
+
+  body.theme-black .network-portrait-toggle-button svg,
+  body.theme-black .network-landscape-toggle-button svg {
+    fill: #8c68d8;
+  }
+

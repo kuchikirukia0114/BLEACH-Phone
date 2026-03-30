@@ -32,7 +32,7 @@ BLEACH-Phone/
 │       │   └── index.js
 │       ├── network/
 │       │   └── index.js
-│       ├── radio/
+│       ├── news/
 │       │   └── index.js
 │       └── settings/
 │           └── index.js
@@ -52,7 +52,7 @@ BLEACH-Phone/
         │   └── index.css
         ├── network/
         │   └── index.css
-        ├── radio/
+        ├── news/
         │   └── index.css
         ├── screensaver/
         │   └── index.css
@@ -137,7 +137,7 @@ SillyTavern 扩展清单。
 <script src="./scripts/storage.js"></script>
 <script src="./scripts/apps/network/index.js"></script>
 <script src="./scripts/apps/music/index.js"></script>
-<script src="./scripts/apps/radio/index.js"></script>
+<script src="./scripts/apps/news/index.js"></script>
 <script src="./scripts/apps/ai/index.js"></script>
 <script src="./scripts/apps/settings/index.js"></script>
 <script src="./scripts/apps/contact/index.js"></script>
@@ -160,7 +160,7 @@ SillyTavern 扩展清单。
 主要放：
 - 当前主题
 - 当前 app
-- menu / records / radio / settings / contact 各种选中索引
+- menu / records / news / settings / contact 各种选中索引
 - 音乐 / 视频 / AI / 屏保的运行状态
 - 主题顺序、设置项顺序等常量
 
@@ -217,8 +217,8 @@ SillyTavern 扩展清单。
 - 进度条拖动
 - 封面与唱片状态
 
-### `apps/radio/index.js`
-负责新闻区相关逻辑：
+### `apps/news/index.js`
+负责新闻相关逻辑：
 - 新闻列表
 - 新闻详情
 - 新闻滚动
@@ -307,7 +307,7 @@ SillyTavern 扩展清单。
 ## 5.2 `styles/apps/`
 按应用分样式。
 
-- `radio/index.css`
+- `news/index.css`
 - `network/index.css`
 - `music/index.css`
 - `contact/index.css`

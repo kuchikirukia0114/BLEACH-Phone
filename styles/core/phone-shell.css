@@ -135,7 +135,16 @@
     filter: contrast(1.04) saturate(1.03);
     display: none;
   }
-  .back-logo.has-image .back-logo-thumb {
+  .back-logo-thumb-video {
+    border-radius: 50%;
+  }
+  .back-logo.has-media .back-logo-thumb {
+    display: block;
+  }
+  .back-logo.has-media.is-video .back-logo-thumb {
+    display: none;
+  }
+  .back-logo.has-media.is-video .back-logo-thumb-video {
     display: block;
   }
   .back-logo svg {
@@ -145,7 +154,7 @@
     position: relative;
     z-index: 1;
   }
-  .back-logo.has-image svg {
+  .back-logo.has-media svg {
     display: none;
   }
   .outer-display {
@@ -159,28 +168,24 @@
     justify-content: center;
     align-items: center;
     color: var(--outer-display-text);
-    font-size: 11px;
+    font-size: 15px;
+    font-weight: bold;
     box-shadow: inset 0 0 5px #000;
     transition: all 0.2s ease;
-    letter-spacing: 1px;
+    letter-spacing: 1.4px;
     padding: 0 6px;
     box-sizing: border-box;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  body.theme-black .outer-display {
+    color: #6db2ff;
+    text-shadow: 0 0 4px rgba(109, 178, 255, 0.35);
+  }
   body.theme-white .outer-display {
+    color: #b08969;
     box-shadow: none;
-  }
-  .outer-display.alert {
-    color: var(--accent);
-    border-color: var(--accent);
-    box-shadow: inset 0 0 8px var(--signal-glow), 0 0 8px var(--signal-glow);
-    animation: outer-alert-blink 0.7s infinite;
-  }
-  @keyframes outer-alert-blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
   }
 
   /* 转轴 */

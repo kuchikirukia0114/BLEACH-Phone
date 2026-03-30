@@ -12,16 +12,16 @@ body.theme-white {
 }
 
 body.theme-black {
-  --weather-sun: #ff9a4d;
-  --weather-cloud: #ff7b7b;
-  --weather-night: #b08cff;
-  --weather-rain: #7db7ff;
-  --weather-night-rain: #5e98e8;
-  --weather-storm: #ff546d;
-  --weather-snow: #d7ebff;
-  --weather-fog: #b9a8a8;
-  --weather-dust: #d6a15b;
-  --weather-wind: #c7a6ff;
+  --weather-sun: #ffd27a;
+  --weather-cloud: #6db2ff;
+  --weather-night: #8aabff;
+  --weather-rain: #4fa1ff;
+  --weather-night-rain: #357be6;
+  --weather-storm: #6d8aff;
+  --weather-snow: #bce1ff;
+  --weather-fog: #728fb5;
+  --weather-dust: #9b7e5b;
+  --weather-wind: #9fbceb;
 }
 
 .weather-status-banner {

@@ -41,26 +41,76 @@ function getSelectedScreenSaverEntry() {
   return screenSaverEntries[selectedScreenSaverListIndex];
 }
 
+function isScreenSaverVideoUrl(url) {
+  const normalizedUrl = String(url || '').trim();
+  if (!normalizedUrl) return false;
+  if (/^data:video\//i.test(normalizedUrl)) return true;
+  return /\.(mp4|webm|ogg|ogv|mov|m4v)(?:$|[?#])/i.test(normalizedUrl);
+}
+
+function getScreenSaverEntryMediaLabel(entry) {
+  return isScreenSaverVideoUrl(entry?.url || '') ? '视频' : '图片';
+}
+
+function resetScreenSaverVideoElement(videoEl) {
+  if (!videoEl) return;
+  videoEl.pause();
+  videoEl.removeAttribute('src');
+  videoEl.load();
+}
+
+function syncScreenSaverVideoPlayback() {
+  const shouldPlay = Boolean(isScreenSaverActive);
+  [
+    document.getElementById('screen-saver-video'),
+    document.getElementById('lid-open-thumb-video')
+  ].forEach((videoEl) => {
+    if (!videoEl) return;
+    const hasSrc = Boolean(videoEl.getAttribute('src'));
+    if (shouldPlay && hasSrc) {
+      const playPromise = videoEl.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {});
+      }
+      return;
+    }
+    videoEl.pause();
+  });
+}
+
 function setScreenSaverVisual(url) {
   const screenSaver = document.getElementById('screen-saver');
   const screenSaverImage = document.getElementById('screen-saver-image');
+  const screenSaverVideo = document.getElementById('screen-saver-video');
   const lidOpenButton = document.getElementById('lid-open-button');
   const lidOpenThumb = document.getElementById('lid-open-thumb');
+  const lidOpenThumbVideo = document.getElementById('lid-open-thumb-video');
   currentScreenSaverImageUrl = (url || '').trim();
 
-  if (!screenSaver || !screenSaverImage || !lidOpenButton || !lidOpenThumb) return;
+  if (!screenSaver || !screenSaverImage || !screenSaverVideo || !lidOpenButton || !lidOpenThumb || !lidOpenThumbVideo) return;
 
-  lidOpenButton.classList.remove('has-image');
+  const isVideo = isScreenSaverVideoUrl(currentScreenSaverImageUrl);
 
-  if (currentScreenSaverImageUrl) {
-    screenSaver.classList.remove('has-custom-image');
-    screenSaverImage.src = currentScreenSaverImageUrl;
-    lidOpenThumb.src = currentScreenSaverImageUrl;
-  } else {
-    screenSaverImage.removeAttribute('src');
-    lidOpenThumb.removeAttribute('src');
-    screenSaver.classList.remove('has-custom-image');
+  screenSaver.classList.remove('has-custom-media', 'is-video');
+  lidOpenButton.classList.remove('has-media', 'is-video');
+  screenSaverImage.removeAttribute('src');
+  lidOpenThumb.removeAttribute('src');
+  resetScreenSaverVideoElement(screenSaverVideo);
+  resetScreenSaverVideoElement(lidOpenThumbVideo);
+
+  if (!currentScreenSaverImageUrl) {
+    return;
   }
+
+  if (isVideo) {
+    screenSaverVideo.src = currentScreenSaverImageUrl;
+    lidOpenThumbVideo.src = currentScreenSaverImageUrl;
+    syncScreenSaverVideoPlayback();
+    return;
+  }
+
+  screenSaverImage.src = currentScreenSaverImageUrl;
+  lidOpenThumb.src = currentScreenSaverImageUrl;
 }
 
 function pickRandomScreenSaverIndex() {
@@ -144,20 +194,36 @@ function deleteScreenSaverEntry(index) {
   }
 }
 
-function handleScreenSaverImageLoad() {
+function applyScreenSaverLoadedState(isVideo = false) {
   const screenSaver = document.getElementById('screen-saver');
-  const screenSaverImage = document.getElementById('screen-saver-image');
   const lidOpenButton = document.getElementById('lid-open-button');
-  if (!screenSaver || !screenSaverImage || !lidOpenButton || !screenSaverImage.getAttribute('src')) return;
-  screenSaver.classList.add('has-custom-image');
-  lidOpenButton.classList.add('has-image');
+  if (!screenSaver || !lidOpenButton || !currentScreenSaverImageUrl) return;
+  screenSaver.classList.add('has-custom-media');
+  lidOpenButton.classList.add('has-media');
+  screenSaver.classList.toggle('is-video', isVideo);
+  lidOpenButton.classList.toggle('is-video', isVideo);
 }
 
-function handleScreenSaverImageError() {
+function handleScreenSaverImageLoad() {
+  const screenSaverImage = document.getElementById('screen-saver-image');
+  if (!screenSaverImage || !screenSaverImage.getAttribute('src')) return;
+  applyScreenSaverLoadedState(false);
+}
+
+function handleScreenSaverVideoLoad() {
+  const screenSaverVideo = document.getElementById('screen-saver-video');
+  if (!screenSaverVideo || !screenSaverVideo.getAttribute('src')) return;
+  applyScreenSaverLoadedState(true);
+  syncScreenSaverVideoPlayback();
+}
+
+function handleScreenSaverMediaError() {
   const screenSaver = document.getElementById('screen-saver');
   const screenSaverImage = document.getElementById('screen-saver-image');
+  const screenSaverVideo = document.getElementById('screen-saver-video');
   const lidOpenButton = document.getElementById('lid-open-button');
   const lidOpenThumb = document.getElementById('lid-open-thumb');
+  const lidOpenThumbVideo = document.getElementById('lid-open-thumb-video');
 
   if (currentScreenSaverEntryIndex >= 0 && currentScreenSaverEntryIndex < screenSaverEntries.length) {
     screenSaverEntries.splice(currentScreenSaverEntryIndex, 1);
@@ -170,14 +236,20 @@ function handleScreenSaverImageError() {
   if (screenSaverImage) {
     screenSaverImage.removeAttribute('src');
   }
+  if (screenSaverVideo) {
+    resetScreenSaverVideoElement(screenSaverVideo);
+  }
   if (lidOpenThumb) {
     lidOpenThumb.removeAttribute('src');
   }
+  if (lidOpenThumbVideo) {
+    resetScreenSaverVideoElement(lidOpenThumbVideo);
+  }
   if (screenSaver) {
-    screenSaver.classList.remove('has-custom-image');
+    screenSaver.classList.remove('has-custom-media', 'is-video');
   }
   if (lidOpenButton) {
-    lidOpenButton.classList.remove('has-image');
+    lidOpenButton.classList.remove('has-media', 'is-video');
   }
   if (selectedScreenSaverListIndex >= screenSaverEntries.length) {
     selectedScreenSaverListIndex = screenSaverEntries.length ? screenSaverEntries.length - 1 : -1;
@@ -186,6 +258,14 @@ function handleScreenSaverImageError() {
   if (currentAppKey === 'settings') {
     renderAppWindow('settings');
   }
+}
+
+function handleScreenSaverImageError() {
+  handleScreenSaverMediaError();
+}
+
+function handleScreenSaverVideoError() {
+  handleScreenSaverMediaError();
 }
 
 function setAppSoftkeys(left, center, right) {
@@ -255,6 +335,318 @@ function closeScreenSaverEditor() {
     ? Math.min(Math.max(selectedScreenSaverListIndex, 0), screenSaverEntries.length - 1)
     : -1;
   renderAppWindow('settings');
+}
+
+function openWorldBookSettings() {
+  settingsView = 'worldBook';
+  renderAppWindow('settings');
+}
+
+function closeWorldBookSettings() {
+  settingsView = 'list';
+  renderAppWindow('settings');
+}
+
+function openWorldBookPicker() {
+  settingsView = 'worldBookPicker';
+  selectedAiPresetWorldBookIndex = aiPresetWorldBookOptions.length
+    ? Math.min(Math.max(selectedAiPresetWorldBookIndex, 0), aiPresetWorldBookOptions.length - 1)
+    : -1;
+  renderAppWindow('settings');
+  loadAiPresetWorldBookOptions();
+}
+
+function closeWorldBookPicker() {
+  settingsView = 'worldBook';
+  renderAppWindow('settings');
+}
+
+function getWorldBookEntries() {
+  return Array.isArray(aiSettings?.worldBookEntries) ? aiSettings.worldBookEntries : [];
+}
+
+function getEditingWorldBookEntry() {
+  const entries = getWorldBookEntries();
+  if (editingWorldBookIndex < 0 || editingWorldBookIndex >= entries.length) return null;
+  return entries[editingWorldBookIndex] || null;
+}
+
+function getWorldBookScopeLabel(scope = '') {
+  const normalizedScope = String(scope || '').trim();
+  if (normalizedScope === 'chat') return '聊天绑定';
+  if (normalizedScope === 'character') return '角色绑定';
+  return '全局世界书';
+}
+
+function getWorldBookSettingsLabel() {
+  const entries = getWorldBookEntries();
+  return entries.length ? `${entries.length}本` : '空';
+}
+
+function getWorldBookMainChatSummary(entry = null) {
+  const targetEntry = entry || getEditingWorldBookEntry();
+  if (!targetEntry) return '默认';
+  const isDefault = String(targetEntry.mainChatContextN ?? '10') === '10'
+    && String(targetEntry.mainChatUserN ?? '') === ''
+    && !normalizeAiMainChatRules(targetEntry.mainChatXmlRules).some((rule) => String(rule?.tag || '').trim() || String(rule?.n || '').trim());
+  return isDefault ? '默认' : '已设';
+}
+
+function getWorldBookInfoBindingsSummary(entry = null) {
+  const targetEntry = entry || getEditingWorldBookEntry();
+  const bindings = Array.isArray(targetEntry?.infoSourceBindings) ? targetEntry.infoSourceBindings : [];
+  return bindings.length ? `${bindings.length}项` : '空';
+}
+
+function getWorldBookTriggeredPreviewSummary() {
+  return '查看';
+}
+
+function saveWorldBookEntries(entries = []) {
+  aiSettings = normalizeAiSettings({
+    ...normalizeAiSettings(aiSettings),
+    worldBookEntries: normalizeAiWorldBookEntries(entries)
+  });
+  persistAiSettings(aiSettings);
+  return aiSettings;
+}
+
+function updateEditingWorldBookEntry(patch = {}) {
+  const entries = getWorldBookEntries();
+  if (editingWorldBookIndex < 0 || editingWorldBookIndex >= entries.length) return null;
+  const nextEntries = entries.slice();
+  nextEntries[editingWorldBookIndex] = {
+    ...nextEntries[editingWorldBookIndex],
+    ...(patch || {})
+  };
+  saveWorldBookEntries(nextEntries);
+  return getWorldBookEntries()[editingWorldBookIndex] || null;
+}
+
+function syncPendingAiMainChatSettingsFromWorldBookEntry(entry = null) {
+  const targetEntry = entry || getEditingWorldBookEntry();
+  pendingAiMainChatContextN = targetEntry?.mainChatContextN === '' || targetEntry?.mainChatContextN == null ? '10' : String(targetEntry.mainChatContextN);
+  pendingAiMainChatUserN = targetEntry?.mainChatUserN === '' || targetEntry?.mainChatUserN == null ? '' : String(targetEntry.mainChatUserN);
+  pendingAiMainChatXmlRules = normalizeAiMainChatRules(targetEntry?.mainChatXmlRules);
+}
+
+async function refreshWorldBookMainChatPreview() {
+  aiMainChatPreviewStatus = '读取中…';
+  aiMainChatPreviewText = '';
+  if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatPreview') {
+    renderAppWindow('settings');
+  }
+  try {
+    const messages = await buildAiMainChatHistoryMessages({
+      ...aiSettings,
+      mainChatContextN: pendingAiMainChatContextN,
+      mainChatUserN: pendingAiMainChatUserN,
+      mainChatXmlRules: pendingAiMainChatXmlRules
+    });
+    aiMainChatPreviewText = messages.map((message) => `${message.role === 'user' ? '用户' : 'AI'}：${message.content}`).join('\n\n');
+    aiMainChatPreviewStatus = `已读取 ${messages.length} 条`;
+  } catch (error) {
+    aiMainChatPreviewText = '';
+    aiMainChatPreviewStatus = '读取失败';
+    console.error('[世界书主聊天] 读取失败', error);
+  }
+  if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatPreview') {
+    renderAppWindow('settings');
+  }
+}
+
+function openWorldBookEntry(index = -1) {
+  const entries = getWorldBookEntries();
+  const targetIndex = Number(index);
+  if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= entries.length) return false;
+  editingWorldBookIndex = targetIndex;
+  selectedWorldBookEntrySettingsIndex = 0;
+  settingsView = 'worldBookEntry';
+  renderAppWindow('settings');
+  return true;
+}
+
+function closeWorldBookEntry() {
+  settingsView = 'worldBook';
+  selectedWorldBookEntrySettingsIndex = 0;
+  renderAppWindow('settings');
+}
+
+function openWorldBookMainChatSettings() {
+  syncPendingAiMainChatSettingsFromWorldBookEntry();
+  settingsView = 'worldBookMainChat';
+  renderAppWindow('settings');
+}
+
+function closeWorldBookMainChatSettings() {
+  settingsView = 'worldBookEntry';
+  renderAppWindow('settings');
+}
+
+function saveEditingWorldBookMainChatSettings() {
+  updateEditingWorldBookEntry({
+    mainChatContextN: pendingAiMainChatContextN,
+    mainChatUserN: pendingAiMainChatUserN,
+    mainChatXmlRules: pendingAiMainChatXmlRules
+  });
+  closeWorldBookMainChatSettings();
+}
+
+function openWorldBookMainChatRules() {
+  settingsView = 'worldBookMainChatRules';
+  renderAppWindow('settings');
+}
+
+function closeWorldBookMainChatRules() {
+  settingsView = 'worldBookMainChat';
+  renderAppWindow('settings');
+}
+
+function openWorldBookMainChatPreview() {
+  settingsView = 'worldBookMainChatPreview';
+  aiMainChatPreviewStatus = '';
+  aiMainChatPreviewText = '';
+  renderAppWindow('settings');
+  refreshWorldBookMainChatPreview();
+}
+
+function closeWorldBookMainChatPreview() {
+  settingsView = 'worldBookMainChat';
+  renderAppWindow('settings');
+}
+
+async function refreshWorldBookTriggeredPreview() {
+  worldBookTriggeredPreviewStatus = '读取中…';
+  worldBookTriggeredPreviewText = '';
+  if (currentAppKey === 'settings' && settingsView === 'worldBookTriggeredPreview') {
+    renderAppWindow('settings');
+  }
+  try {
+    const entry = getEditingWorldBookEntry();
+    const pendingTargets = typeof getAiPendingTargetsFromHistory === 'function' ? getAiPendingTargetsFromHistory() : [];
+    const activeContact = typeof getCurrentAiContact === 'function' ? getCurrentAiContact() : null;
+    const content = entry ? await buildAiWorldBookTriggerMessage(entry, activeContact, { pendingTargets }) : '';
+    worldBookTriggeredPreviewText = content || '暂无触发内容';
+    worldBookTriggeredPreviewStatus = content ? '已触发世界书内容' : '暂无触发内容';
+  } catch (error) {
+    worldBookTriggeredPreviewText = '';
+    worldBookTriggeredPreviewStatus = '读取失败';
+    console.error('[世界书触发预览] 读取失败', error);
+  }
+  if (currentAppKey === 'settings' && settingsView === 'worldBookTriggeredPreview') {
+    renderAppWindow('settings');
+  }
+}
+
+function openWorldBookTriggeredPreview() {
+  settingsView = 'worldBookTriggeredPreview';
+  worldBookTriggeredPreviewText = '';
+  worldBookTriggeredPreviewStatus = '';
+  renderAppWindow('settings');
+  refreshWorldBookTriggeredPreview();
+}
+
+function closeWorldBookTriggeredPreview() {
+  settingsView = 'worldBookEntry';
+  renderAppWindow('settings');
+}
+
+function openWorldBookInfoBindings() {
+  const bindings = Array.isArray(getEditingWorldBookEntry()?.infoSourceBindings) ? getEditingWorldBookEntry().infoSourceBindings : [];
+  selectedWorldBookInfoBindingIndex = bindings.length ? Math.min(Math.max(selectedWorldBookInfoBindingIndex, 0), bindings.length - 1) : -1;
+  settingsView = 'worldBookInfoBindings';
+  renderAppWindow('settings');
+}
+
+function closeWorldBookInfoBindings() {
+  settingsView = 'worldBookEntry';
+  renderAppWindow('settings');
+}
+
+function openWorldBookInfoSourcePicker() {
+  const sources = getAiPresetInfoSources();
+  selectedAiPresetInfoSourceIndex = sources.length ? Math.min(Math.max(selectedAiPresetInfoSourceIndex, 0), sources.length - 1) : -1;
+  settingsView = 'worldBookInfoSourcePicker';
+  renderAppWindow('settings');
+}
+
+function closeWorldBookInfoSourcePicker() {
+  settingsView = 'worldBookInfoBindings';
+  renderAppWindow('settings');
+}
+
+function addSelectedWorldBookInfoSourceBinding() {
+  const sources = getAiPresetInfoSources();
+  if (!sources.length || selectedAiPresetInfoSourceIndex < 0) return false;
+  const source = sources[Math.min(selectedAiPresetInfoSourceIndex, sources.length - 1)];
+  const entry = getEditingWorldBookEntry();
+  if (!entry || !source) return false;
+  const currentBindings = Array.isArray(entry.infoSourceBindings) ? entry.infoSourceBindings : [];
+  const alreadyExists = currentBindings.some((binding) => String(binding?.sourceId || '').trim() === String(source.id || '').trim());
+  if (alreadyExists) {
+    closeWorldBookInfoSourcePicker();
+    return false;
+  }
+  updateEditingWorldBookEntry({
+    infoSourceBindings: currentBindings.concat({
+      id: createAiWorldBookInfoBindingId(currentBindings.length),
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceScope: getAiPresetInfoSourceScope(source.id)
+    })
+  });
+  closeWorldBookInfoSourcePicker();
+  return true;
+}
+
+function deleteWorldBookInfoSourceBinding(index) {
+  const entry = getEditingWorldBookEntry();
+  const currentBindings = Array.isArray(entry?.infoSourceBindings) ? entry.infoSourceBindings : [];
+  if (index < 0 || index >= currentBindings.length) return false;
+  const nextBindings = currentBindings.slice();
+  nextBindings.splice(index, 1);
+  updateEditingWorldBookEntry({ infoSourceBindings: nextBindings });
+  const nextIndex = nextBindings.length ? Math.min(index, nextBindings.length - 1) : -1;
+  selectedWorldBookInfoBindingIndex = nextIndex;
+  renderAppWindow('settings');
+  return true;
+}
+
+function addSelectedWorldBookEntry() {
+  if (!aiPresetWorldBookOptions.length || selectedAiPresetWorldBookIndex < 0) return false;
+  const source = aiPresetWorldBookOptions[Math.min(selectedAiPresetWorldBookIndex, aiPresetWorldBookOptions.length - 1)];
+  if (!source?.name) return false;
+  const currentEntries = getWorldBookEntries();
+  const nextEntries = currentEntries.concat({
+    id: createAiWorldBookSelectionId(currentEntries.length),
+    sourceId: source.id,
+    name: source.name,
+    scope: source.scope,
+    ownerId: source.ownerId,
+    mainChatContextN: '10',
+    mainChatUserN: '',
+    mainChatXmlRules: [],
+    infoSourceBindings: []
+  });
+  saveWorldBookEntries(nextEntries);
+  settingsView ='worldBook';
+  renderAppWindow('settings');
+  return true;
+}
+
+function deleteWorldBookEntry(index) {
+  const currentEntries = getWorldBookEntries();
+  if (index < 0 || index >= currentEntries.length) return false;
+  const nextEntries = currentEntries.slice();
+  nextEntries.splice(index, 1);
+  if (editingWorldBookIndex === index) {
+    editingWorldBookIndex = -1;
+  } else if (editingWorldBookIndex > index) {
+    editingWorldBookIndex -= 1;
+  }
+  saveWorldBookEntries(nextEntries);
+  renderAppWindow('settings');
+  return true;
 }
 
 function getThemeLabel(themeName) {
@@ -415,15 +807,64 @@ function moveSettingsSelection(direction) {
     return;
   }
 
-  if (settingsView === 'aiPromptWorldBookPicker') {
-    if (!aiPresetWorldBookOptions.length) return;
+  if (settingsView === 'aiPromptWorldBookPicker' || settingsView === 'worldBookPicker') {
+    const worldBookOptions = settingsView === 'worldBookPicker'
+      ? aiPresetWorldBookOptions
+      : getAiPresetConfiguredWorldBookOptions(aiSettings);
+    if (!worldBookOptions.length) return;
     if (direction === 'up') {
       selectedAiPresetWorldBookIndex = Math.max(0, selectedAiPresetWorldBookIndex - 1);
       renderAppWindow('settings');
       return;
     }
     if (direction === 'down') {
-      selectedAiPresetWorldBookIndex = Math.min(aiPresetWorldBookOptions.length - 1, selectedAiPresetWorldBookIndex + 1);
+      selectedAiPresetWorldBookIndex = Math.min(worldBookOptions.length - 1, selectedAiPresetWorldBookIndex + 1);
+      renderAppWindow('settings');
+      return;
+    }
+    return;
+  }
+
+  if (settingsView === 'worldBookEntry') {
+    if (direction === 'up') {
+      selectedWorldBookEntrySettingsIndex = Math.max(0, selectedWorldBookEntrySettingsIndex - 1);
+      renderAppWindow('settings');
+      return;
+    }
+    if (direction === 'down') {
+      selectedWorldBookEntrySettingsIndex = Math.min(2, selectedWorldBookEntrySettingsIndex + 1);
+      renderAppWindow('settings');
+      return;
+    }
+    return;
+  }
+
+  if (settingsView === 'worldBookInfoBindings') {
+    const bindings = Array.isArray(getEditingWorldBookEntry()?.infoSourceBindings) ? getEditingWorldBookEntry().infoSourceBindings : [];
+    if (!bindings.length) return;
+    if (direction === 'up') {
+      selectedWorldBookInfoBindingIndex = Math.max(0, selectedWorldBookInfoBindingIndex - 1);
+      renderAppWindow('settings');
+      return;
+    }
+    if (direction === 'down') {
+      selectedWorldBookInfoBindingIndex = Math.min(bindings.length - 1, selectedWorldBookInfoBindingIndex + 1);
+      renderAppWindow('settings');
+      return;
+    }
+    return;
+  }
+
+  if (settingsView === 'worldBookInfoSourcePicker') {
+    const sources = getAiPresetInfoSources();
+    if (!sources.length) return;
+    if (direction === 'up') {
+      selectedAiPresetInfoSourceIndex = Math.max(0, selectedAiPresetInfoSourceIndex - 1);
+      renderAppWindow('settings');
+      return;
+    }
+    if (direction === 'down') {
+      selectedAiPresetInfoSourceIndex = Math.min(sources.length - 1, selectedAiPresetInfoSourceIndex + 1);
       renderAppWindow('settings');
       return;
     }
@@ -544,6 +985,142 @@ function renderSettingsContent() {
 
   if (settingsView === 'aiPromptWorldBookPicker') {
     return renderAiPresetWorldBookPickerContent();
+  }
+
+  if (settingsView === 'worldBookPicker') {
+    return renderAiPresetWorldBookPickerContent();
+  }
+
+  if (settingsView === 'worldBookEntry') {
+    const entry = getEditingWorldBookEntry();
+    if (!entry) {
+      return '<div class="app-subline ai-preset-empty-line">暂无世界书</div>';
+    }
+    return `
+      <div class="settings-list">
+        <button class="setting-row ${selectedWorldBookEntrySettingsIndex === 0 ? 'is-selected' : ''}" data-worldbook-entry-setting="mainChat" type="button">
+          <span class="setting-row-label">主聊天上下文</span>
+          <span class="setting-row-value-wrap">
+            <span class="setting-row-value">${escapeHtml(getWorldBookMainChatSummary(entry))}</span>
+            <span class="setting-row-arrow">›</span>
+          </span>
+        </button>
+        <button class="setting-row ${selectedWorldBookEntrySettingsIndex === 1 ? 'is-selected' : ''}" data-worldbook-entry-setting="infoBindings" type="button">
+          <span class="setting-row-label">信息块</span>
+          <span class="setting-row-value-wrap">
+            <span class="setting-row-value">${escapeHtml(getWorldBookInfoBindingsSummary(entry))}</span>
+            <span class="setting-row-arrow">›</span>
+          </span>
+        </button>
+        <button class="setting-row ${selectedWorldBookEntrySettingsIndex === 2 ? 'is-selected' : ''}" data-worldbook-entry-setting="triggeredPreview" type="button">
+          <span class="setting-row-label">已触发预览</span>
+          <span class="setting-row-value-wrap">
+            <span class="setting-row-value">${escapeHtml(getWorldBookTriggeredPreviewSummary())}</span>
+            <span class="setting-row-arrow">›</span>
+          </span>
+        </button>
+      </div>
+    `;
+  }
+
+  if (settingsView === 'worldBookMainChat') {
+    return `
+      <div class="settings-editor">
+        <div class="app-subline">最近AI消息范围</div>
+        <input class="settings-editor-field" id="ai-mainchat-context-n-input" type="number" min="0" max="99" step="1" inputmode="numeric" spellcheck="false" value="${escapeHtml(pendingAiMainChatContextN)}" placeholder="最近AI消息范围">
+        <div class="app-microline">空=全部，0=不读取，数字=最近N条AI消息</div>
+        <div class="app-subline">最近用户消息范围</div>
+        <input class="settings-editor-field" id="ai-mainchat-user-n-input" type="number" min="0" max="99" step="1" inputmode="numeric" spellcheck="false" value="${escapeHtml(pendingAiMainChatUserN)}" placeholder="最近用户消息范围">
+        <div class="app-microline">空=全部，0=不发送，数字=最近N条用户消息</div>
+      </div>
+      <div class="settings-list">
+        <button class="setting-row" id="worldbook-mainchat-rules-open" type="button">
+          <span class="setting-row-label">XML规则</span>
+          <span class="setting-row-value-wrap">
+            <span class="setting-row-value">${pendingAiMainChatXmlRules.length ? `${pendingAiMainChatXmlRules.length}项` : '空'}</span>
+            <span class="setting-row-arrow">›</span>
+          </span>
+        </button>
+        <button class="setting-row" id="worldbook-mainchat-preview-open" type="button">
+          <span class="setting-row-label">预览上下文</span>
+          <span class="setting-row-value-wrap">
+            <span class="setting-row-value">查看</span>
+            <span class="setting-row-arrow">›</span>
+          </span>
+        </button>
+      </div>
+    `;
+  }
+
+  if (settingsView === 'worldBookMainChatRules') {
+    const rulesHtml = pendingAiMainChatXmlRules.length
+      ? pendingAiMainChatXmlRules.map((rule, index) => `
+          <div class="ai-mainchat-rule">
+            <div class="ai-mainchat-rule-top">
+              <input class="settings-editor-field ai-mainchat-rule-tag" data-ai-mainchat-rule-tag-index="${index}" type="text" maxlength="24" spellcheck="false" value="${escapeHtml(rule.tag)}" placeholder="标签名">
+              <button class="screensaver-delete-button ai-mainchat-rule-delete" data-ai-mainchat-rule-delete-index="${index}" type="button">×</button>
+            </div>
+            <div class="ai-mainchat-rule-bottom">
+              <button class="ai-mainchat-rule-mode-button ${aiMainChatModeFlashIndex === index ? 'is-flash' : ''}" data-ai-mainchat-rule-mode-toggle-index="${index}" type="button">${rule.mode === 'exclude' ? '排除最近N楼' : '最近N楼'}</button>
+              <input class="settings-editor-field ai-mainchat-rule-n" data-ai-mainchat-rule-n-index="${index}" type="number" min="0" max="99" step="1" inputmode="numeric" spellcheck="false" value="${escapeHtml(rule.n)}" placeholder="N">
+            </div>
+          </div>
+        `).join('')
+      : '<div class="app-subline">无规则，AI消息将按原文读取</div>';
+    return `<div class="ai-mainchat-rules" id="ai-mainchat-rules">${rulesHtml}</div>`;
+  }
+
+  if (settingsView === 'worldBookMainChatPreview') {
+    return `
+      <div class="settings-editor">
+        <div class="ai-mainchat-preview" id="ai-mainchat-preview-output">${escapeHtml(aiMainChatPreviewText || '')}</div>
+      </div>
+      <div class="app-microline ai-mainchat-preview-status">${escapeHtml(aiMainChatPreviewStatus || '')}</div>
+    `;
+  }
+
+  if (settingsView === 'worldBookTriggeredPreview') {
+    return `
+      <div class="settings-editor">
+        <div class="ai-mainchat-preview" id="worldbook-triggered-preview-output">${escapeHtml(worldBookTriggeredPreviewText || '')}</div>
+      </div>
+      <div class="app-microline ai-mainchat-preview-status">${escapeHtml(worldBookTriggeredPreviewStatus || '')}</div>
+    `;
+  }
+
+  if (settingsView === 'worldBookInfoBindings') {
+    const entry = getEditingWorldBookEntry();
+    const bindings = Array.isArray(entry?.infoSourceBindings) ? entry.infoSourceBindings : [];
+    const bindingsHtml = bindings.length
+      ? bindings.map((binding, index) => `
+          <div class="screensaver-saved-item ${selectedWorldBookInfoBindingIndex === index ? 'is-selected' : ''}" data-worldbook-info-binding-index="${index}">
+            <div class="screensaver-saved-main">
+              <span class="screensaver-saved-name">${escapeHtml(binding.sourceName || binding.sourceId)}</span>
+            </div>
+            <button class="screensaver-delete-button" data-worldbook-info-binding-delete-index="${index}" type="button">×</button>
+          </div>
+        `).join('')
+      : '';
+    return `<div class="screensaver-saved-list">${bindingsHtml}</div>`;
+  }
+
+  if (settingsView === 'worldBookInfoSourcePicker') {
+    const sources = getAiPresetInfoSources();
+    if (!sources.length) {
+      return '<div class="app-subline ai-preset-empty-line">暂无信息来源</div>';
+    }
+    return `
+      <div class="screensaver-saved-list ai-preset-picker-list" id="worldbook-info-source-list">
+        ${sources.map((source, index) => `
+          <div class="screensaver-saved-item ai-preset-picker-item ${selectedAiPresetInfoSourceIndex === index ? 'is-selected' : ''}" data-worldbook-info-source-index="${index}">
+            <div class="screensaver-saved-main ai-preset-picker-main">
+              <span class="screensaver-saved-name">${escapeHtml(source.name)}</span>
+              <span class="screensaver-saved-url">${escapeHtml(source.subtitle)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   if (settingsView === 'aiPromptBlockPreview') {
@@ -723,8 +1300,8 @@ function renderSettingsContent() {
   if (settingsView === 'screensaverEditor') {
     return `
       <div class="settings-editor">
-        <input class="settings-editor-field" id="screensaver-name-input" type="text" maxlength="24" spellcheck="false" placeholder="壁纸名字">
-        <textarea class="settings-editor-input" id="screensaver-url-input" spellcheck="false" placeholder="图片 URL"></textarea>
+        <input class="settings-editor-field" id="screensaver-name-input" type="text" maxlength="24" spellcheck="false" placeholder="屏保名字">
+        <textarea class="settings-editor-input" id="screensaver-url-input" spellcheck="false" placeholder="图片 / 视频 URL（支持 mp4、webm、ogg、mov、m4v）"></textarea>
       </div>
     `;
   }
@@ -733,7 +1310,7 @@ function renderSettingsContent() {
     const savedEntriesHtml = screenSaverEntries.map((entry, index) => `
       <div class="screensaver-saved-item ${selectedScreenSaverListIndex === index ? 'is-selected' : ''}" data-screensaver-index="${index}">
         <div class="screensaver-saved-main">
-          <span class="screensaver-saved-name">${escapeHtml(getScreenSaverEntryLabel(entry))}</span>
+          <span class="screensaver-saved-name">[${getScreenSaverEntryMediaLabel(entry)}] ${escapeHtml(getScreenSaverEntryLabel(entry))}</span>
           <span class="screensaver-saved-url">${escapeHtml(entry.url)}</span>
         </div>
         <button class="screensaver-delete-button" data-screensaver-delete-index="${index}" type="button">×</button>
@@ -742,6 +1319,21 @@ function renderSettingsContent() {
 
     return `
       <div class="screensaver-saved-list">${savedEntriesHtml}</div>
+    `;
+  }
+
+  if (settingsView === 'worldBook') {
+    const entries = getWorldBookEntries();
+    const entriesHtml = entries.map((entry, index) => `
+      <div class="screensaver-saved-item" data-worldbook-entry-index="${index}">
+        <div class="screensaver-saved-main">
+          <span class="screensaver-saved-name">${escapeHtml(entry.name)}</span>
+        </div>
+        <button class="screensaver-delete-button" data-worldbook-entry-delete-index="${index}" type="button">×</button>
+      </div>
+    `).join('');
+    return `
+      <div class="screensaver-saved-list">${entriesHtml}</div>
     `;
   }
 
@@ -782,14 +1374,21 @@ function renderSettingsContent() {
           <span class="setting-row-arrow">›</span>
         </span>
       </button>
-      <button class="setting-row ${selectedSettingsIndex === 5 ? 'is-selected' : ''}" data-setting="aiMainChat" type="button">
+      <button class="setting-row ${selectedSettingsIndex === 5 ? 'is-selected' : ''}" data-setting="worldBook" type="button">
+        <span class="setting-row-label">世界书</span>
+        <span class="setting-row-value-wrap">
+          <span class="setting-row-value">${getWorldBookSettingsLabel()}</span>
+          <span class="setting-row-arrow">›</span>
+        </span>
+      </button>
+      <button class="setting-row ${selectedSettingsIndex === 6 ? 'is-selected' : ''}" data-setting="aiMainChat" type="button">
         <span class="setting-row-label">主聊天</span>
         <span class="setting-row-value-wrap">
           <span class="setting-row-value">${getAiMainChatSummary()}</span>
           <span class="setting-row-arrow">›</span>
         </span>
       </button>
-      <button class="setting-row ${selectedSettingsIndex === 6 ? 'is-selected' : ''}" data-setting="aiConfig" type="button">
+      <button class="setting-row ${selectedSettingsIndex === 7 ? 'is-selected' : ''}" data-setting="aiConfig" type="button">
         <span class="setting-row-label">API配置</span>
         <span class="setting-row-value-wrap">
           <span class="setting-row-value">${escapeHtml(getAiConfigSummaryLabel())}</span>

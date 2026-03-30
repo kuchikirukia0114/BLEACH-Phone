@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="./styles/core/phone-screen.css">
 <link rel="stylesheet" href="./styles/core/app-shell.css">
 <!-- 模块化样式：apps -->
-<link rel="stylesheet" href="./styles/apps/radio/index.css">
+<link rel="stylesheet" href="./styles/apps/news/index.css">
 <link rel="stylesheet" href="./styles/apps/network/index.css">
 <link rel="stylesheet" href="./styles/apps/music/index.css">
 <link rel="stylesheet" href="./styles/apps/items/index.css">
@@ -30,7 +30,8 @@
       <!-- 手机外壳（合上时可见） -->
       <div class="flip-back">
         <button class="back-logo" id="lid-open-button" type="button" aria-label="打开翻盖">
-          <img class="back-logo-thumb" id="lid-open-thumb" alt="当前壁纸缩略图">
+          <img class="back-logo-thumb" id="lid-open-thumb" alt="当前屏保缩略图">
+          <video class="back-logo-thumb back-logo-thumb-video" id="lid-open-thumb-video" muted loop playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
           <svg viewBox="0 0 24 24">
             <path d="M12,2 C7.5,2 4,5.5 4,10 C4,14 6,17 8,22 C10,20 11,18 12,18 C13,18 14,20 16,22 C18,17 20,14 20,10 C20,5.5 16.5,2 12,2 Z" />
           </svg>
@@ -58,8 +59,12 @@
               <div class="battery-container">
                 <div class="battery-body">
                   <div class="battery-level"></div>
-                  <svg class="soul-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <svg class="soul-icon soul-icon-ghost" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 3.2c-3.6 0-6.5 2.7-6.5 6v8.2c0 .5.3.8.8.8.8 0 1.1-.8 1.6-.8s.8.7 1.5.8c.6 0 .9-.8 1.6-.8s1 .8 1.6.8 1-.8 1.6-.8 1 .8 1.6.8c.6 0 .9-.8 1.5-.8s.9.8 1.7.8c.5 0 .8-.3.8-.8V9.2c0-3.3-2.9-6-6.5-6zm-2.2 7.2a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm4.4 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+                  </svg>
+                  <svg class="soul-icon soul-icon-ufo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.67459 8.59375C3.4317 9.35912 2 10.523 2 11.8265C2 13.0345 3.22958 14.1226 5.19488 14.8847L3.85699 17.1145C3.64388 17.4697 3.75906 17.9304 4.11424 18.1435C4.46943 18.3566 4.93012 18.2415 5.14323 17.8863L6.64323 15.3863C6.64924 15.3763 6.65498 15.3662 6.66046 15.356C8.00688 15.7116 9.57078 15.9366 11.2501 15.9886V19.0004C11.2501 19.4146 11.5859 19.7504 12.0001 19.7504C12.4143 19.7504 12.7501 19.4146 12.7501 19.0004V15.9886C14.4294 15.9366 15.9933 15.7115 17.3397 15.356C17.3452 15.3661 17.351 15.3763 17.357 15.3863L18.857 17.8863C19.0701 18.2415 19.5308 18.3566 19.886 18.1435C20.2412 17.9304 20.3563 17.4697 20.1432 17.1145L18.8053 14.8846C20.7705 14.1225 22 13.0344 22 11.8265C22 10.523 20.5683 9.35912 18.3254 8.59375C18.2008 8.88403 17.9937 9.17776 17.6568 9.41211C16.8685 9.96038 15.3013 10.5003 12 10.5003C8.6987 10.5003 7.1315 9.96038 6.34322 9.41211C6.00629 9.17776 5.79918 8.88403 5.67459 8.59375ZM13 13.0003C13 13.5526 12.5523 14.0003 12 14.0003C11.4477 14.0003 11 13.5526 11 13.0003C11 12.448 11.4477 12.0003 12 12.0003C12.5523 12.0003 13 12.448 13 13.0003ZM7 13.0003C7.55228 13.0003 8 12.5526 8 12.0003C8 11.448 7.55228 11.0003 7 11.0003C6.44772 11.0003 6 11.448 6 12.0003C6 12.5526 6.44772 13.0003 7 13.0003ZM18 12.0003C18 12.5526 17.5523 13.0003 17 13.0003C16.4477 13.0003 16 12.5526 16 12.0003C16 11.448 16.4477 11.0003 17 11.0003C17.5523 11.0003 18 11.448 18 12.0003Z" />
+                    <path opacity="0.5" d="M7.05518 8.0054C7.40336 5.73714 9.36329 4 11.729 4H12.2714C14.6371 4 16.597 5.73714 16.9452 8.0054C16.9133 8.07425 16.8662 8.13466 16.8005 8.18039C16.3864 8.4684 15.19 9 12.0002 9C8.81036 9 7.614 8.4684 7.19991 8.18039C7.13417 8.13466 7.08706 8.07425 7.05518 8.0054Z" />
                   </svg>
                 </div>
                 <div class="battery-head"></div>
@@ -69,10 +74,13 @@
             <div id="screen-content">
               <div class="screen-saver" id="screen-saver">
                 <img class="screen-saver-image" id="screen-saver-image" alt="">
+                <video class="screen-saver-video" id="screen-saver-video" muted loop playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
                 <div class="screen-saver-overlay"></div>
                 <div class="screen-saver-clock" id="screen-saver-time">00:00</div>
-                <div class="screen-saver-date" id="screen-saver-date">2001.01.01</div>
-                <div class="screen-saver-tip">↖ 确认 / 进入菜单　↘ 返回屏保</div>
+                <div class="screen-saver-date" id="screen-saver-date">
+                  <span class="screen-saver-date-text" id="screen-saver-date-text">2001.01.01</span>
+                  <span class="screen-saver-weekday" id="screen-saver-weekday">星期一</span>
+                </div>
               </div>
               <!-- 九宫格菜单 -->
               <div class="normal-ui grid-menu" style="padding: 10px;">
@@ -85,41 +93,28 @@
                   </div>
                   <span>天气</span>
                 </div>
-                <div class="grid-item" data-app="chars" data-title="情报">
+                <div class="grid-item" data-app="news" data-title="新闻">
                   <div class="icon">
-                    <!-- 新闻：类似死神令/文件 -->
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="6.5" width="18" height="12.5" rx="2"></rect>
+                      <line x1="9" y1="3.6" x2="12.5" y2="6.5"></line>
+                      <circle cx="9" cy="12.75" r="2.35"></circle>
+                      <line x1="14" y1="11.5" x2="18" y2="11.5"></line>
+                      <line x1="14" y1="14.5" x2="18" y2="14.5"></line>
                     </svg>
                   </div>
-                  <span>情报</span>
+                  <span>新闻</span>
                 </div>
-                <div class="grid-item" data-app="contact" data-title="联络">
+                <div class="grid-item" data-app="map" data-title="地图">
                   <div class="icon">
-                    <!-- 电话簿：人像列表 -->
+                    <!-- 地图 -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="9" cy="7" r="4"></circle>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+                      <line x1="9" y1="5.5" x2="9" y2="18.5"></line>
+                      <line x1="15" y1="5.5" x2="15" y2="18.5"></line>
                     </svg>
                   </div>
-                  <span>联络</span>
-                </div>
-                <div class="grid-item" data-app="music" data-title="音乐">
-                  <div class="icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;">
-                      <path d="M8.8 17.1V6.6l10.7-2.1v10.7"></path>
-                      <line x1="8.8" y1="6.6" x2="19.5" y2="4.5"></line>
-                      <ellipse cx="7.1" cy="18.3" rx="2.5" ry="1.9" fill="currentColor" stroke="none" transform="rotate(-14 7.1 18.3)"></ellipse>
-                      <ellipse cx="17.8" cy="16.2" rx="2.5" ry="1.9" fill="currentColor" stroke="none" transform="rotate(-14 17.8 16.2)"></ellipse>
-                    </svg>
-                  </div>
-                  <span>音乐</span>
+                  <span>地图</span>
                 </div>
                 <div class="grid-item" data-app="sms" data-title="短信">
                   <div class="icon">
@@ -142,9 +137,33 @@
                   </div>
                   <span>道具</span>
                 </div>
+                <div class="grid-item" data-app="chars" data-title="情报">
+                  <div class="icon">
+                    <!-- 情报：文件 -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  </div>
+                  <span>情报</span>
+                </div>
+                <div class="grid-item" data-app="music" data-title="音乐">
+                  <div class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;">
+                      <path d="M8.8 17.1V6.6l10.7-2.1v10.7"></path>
+                      <line x1="8.8" y1="6.6" x2="19.5" y2="4.5"></line>
+                      <ellipse cx="7.1" cy="18.3" rx="2.5" ry="1.9" fill="currentColor" stroke="none" transform="rotate(-14 7.1 18.3)"></ellipse>
+                      <ellipse cx="17.8" cy="16.2" rx="2.5" ry="1.9" fill="currentColor" stroke="none" transform="rotate(-14 17.8 16.2)"></ellipse>
+                    </svg>
+                  </div>
+                  <span>音乐</span>
+                </div>
                 <div class="grid-item" data-app="records" data-title="影音">
                   <div class="icon">
-                    <!-- 多媒体：复古 LCD 胶片/播放 -->
+                    <!-- 影音：复古 LCD 胶片/播放 -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
                       <rect x="3" y="2.5" width="18" height="19" rx="1.4"></rect>
                       <rect x="5.5" y="7.5" width="13" height="9"></rect>
@@ -161,7 +180,7 @@
                   </div>
                   <span>影音</span>
                 </div>
-                <div class="grid-item" data-app="settings" data-title="设定">
+                <div class="grid-item" data-app="settings" data-title="设置">
                   <div class="icon">
                     <!-- 设置/齿轮 -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -169,30 +188,19 @@
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                     </svg>
                   </div>
-                  <span>设定</span>
+                  <span>设置</span>
                 </div>
-                <div class="grid-item" data-app="map" data-title="地图">
+                <div class="grid-item" data-app="contact" data-title="联络">
                   <div class="icon">
-                    <!-- 地图 -->
+                    <!-- 电话簿：人像列表 -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-                      <line x1="9" y1="5.5" x2="9" y2="18.5"></line>
-                      <line x1="15" y1="5.5" x2="15" y2="18.5"></line>
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
                   </div>
-                  <span>地图</span>
-                </div>
-                <div class="grid-item" data-app="radio" data-title="广播">
-                  <div class="icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="6.5" width="18" height="12.5" rx="2"></rect>
-                      <line x1="9" y1="3.6" x2="12.5" y2="6.5"></line>
-                      <circle cx="9" cy="12.75" r="2.35"></circle>
-                      <line x1="14" y1="11.5" x2="18" y2="11.5"></line>
-                      <line x1="14" y1="14.5" x2="18" y2="14.5"></line>
-                    </svg>
-                  </div>
-                  <span>广播</span>
+                  <span>联络</span>
                 </div>
                 <div class="grid-item" data-app="data" data-title="数据">
                   <div class="icon">
@@ -205,6 +213,7 @@
                   </div>
                   <span>数据</span>
                 </div>
+
               </div>
 
               <div class="app-window" id="app-window">
@@ -222,14 +231,6 @@
                 </div>
               </div>
               
-              <!-- 警报界面 -->
-              <div id="alert-ui">
-                <div class="warning-text">WARNING</div>
-                <div style="font-size: 10px; margin-bottom: 10px;">HOLLOW DETECTED!</div>
-                <div class="coordinate">LAT: 35.6895</div>
-                <div class="coordinate">LNG: 139.6917</div>
-                <div style="margin-top: 15px; font-size: 9px; opacity: 0.7;">CLASS: MENOS GRANDE ?</div>
-              </div>
             </div>
           </div>
         </div>
@@ -295,7 +296,7 @@
   <script src="./scripts/apps/music/index.js"></script>
   <script src="./scripts/apps/items/index.js"></script>
   <script src="./scripts/apps/chars/index.js"></script>
-  <script src="./scripts/apps/radio/index.js"></script>
+  <script src="./scripts/apps/news/index.js"></script>
   <script src="./scripts/apps/ai/index.js"></script>
   <script src="./scripts/apps/settings/index.js"></script>
   <script src="./scripts/apps/contact/index.js"></script>

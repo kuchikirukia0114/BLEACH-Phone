@@ -25,6 +25,14 @@
     box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px var(--menu-hover-shadow);
     color: var(--accent);
   }
+  body.theme-black .screensaver-saved-item.is-selected:not(.is-active) {
+    background: linear-gradient(145deg, rgba(18, 43, 84, 0.4), rgba(7, 11, 20, 0.8));
+    border-color: #4da6ff;
+    box-shadow:
+      inset 0 0 0 1px rgba(77, 166, 255, 0.15),
+      0 0 8px rgba(109, 178, 255, 0.25);
+    color: #bce1ff;
+  }
   body.theme-white .screensaver-saved-item {
     border-color: #ddd1c0;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 243, 236, 0.985) 100%);
@@ -76,6 +84,13 @@
   }
   .screensaver-saved-item.is-selected .screensaver-saved-name.is-marquee {
     text-overflow: clip;
+  }
+  body.theme-black .screensaver-saved-item.is-selected:not(.is-active) .screensaver-saved-name {
+    color: #bce1ff;
+  }
+  body.theme-black .screensaver-saved-item.is-selected:not(.is-active) .screensaver-saved-url {
+    color: #9ed0ff;
+    text-shadow: 0 0 4px rgba(158, 208, 255, 0.4);
   }
   .screensaver-saved-item.is-selected .screensaver-saved-name.is-marquee .screensaver-saved-name-track {
     animation: network-title-marquee 8.8s linear infinite;

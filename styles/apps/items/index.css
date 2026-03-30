@@ -125,14 +125,14 @@
 }
 
 .items-list-entry.is-active {
-  background: linear-gradient(90deg, rgba(255, 51, 51, 0.1) 0%, transparent 100%);
-  border-left-color: #cc2929;
-  color: #e63939;
+  background: linear-gradient(90deg, rgba(157, 125, 255, 0.14) 0%, transparent 100%);
+  border-left-color: #9d7dff;
+  color: #dfcdff;
 }
 
 .items-list-entry.is-active .items-list-name::before {
   content: '▶';
-  color: #e63939;
+  color: #dfcdff;
   margin-right: 4px;
   transform: translateY(-1px);
 }

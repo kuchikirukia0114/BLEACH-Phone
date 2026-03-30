@@ -1,10 +1,10 @@
 // Map / 地图应用逻辑（Gemini 参考稿移植版）
 
 const mapRangeEntries = [
-  { label: '10m', totalSpan: 10 },
-  { label: '100m', totalSpan: 100 },
-  { label: '1km', totalSpan: 1000 },
-  { label: '10km', totalSpan: 10000 }
+  { label: '10m', radius: 10 },
+  { label: '100m', radius: 100 },
+  { label: '1km', radius: 1000 },
+  { label: '10km', radius: 10000 }
 ];
 
 const mapParserConfig = {
@@ -232,13 +232,39 @@ function pickMapPlayerPosition(player = null) {
   return { x, y };
 }
 
+function normalizeMapRangeLabel(rangeValue = '') {
+  const rawRange = String(rangeValue || '').trim();
+  if (!rawRange) return '';
+
+  const normalizedRange = rawRange.toLowerCase().replace(/\s+/g, '');
+  const exactMatch = mapRangeEntries.find((entry) => String(entry.label || '').trim().toLowerCase() === normalizedRange);
+  if (exactMatch) return exactMatch.label;
+
+  const unitMatch = normalizedRange.match(/^(-?\d+(?:\.\d+)?)(km|m)$/i);
+  if (unitMatch) {
+    const amount = Number(unitMatch[1]);
+    const unit = String(unitMatch[2] || '').toLowerCase();
+    const radius = unit === 'km' ? amount * 1000 : amount;
+    const matchedEntry = mapRangeEntries.find((entry) => Math.abs(Number(entry.radius) - radius) < 1e-6);
+    if (matchedEntry) return matchedEntry.label;
+  }
+
+  const numericValue = Number(normalizedRange);
+  if (Number.isFinite(numericValue)) {
+    const matchedEntry = mapRangeEntries.find((entry) => Math.abs(Number(entry.radius) - numericValue) < 1e-6);
+    if (matchedEntry) return matchedEntry.label;
+  }
+
+  return rawRange;
+}
+
 function normalizeMapPoint(point, index = 0) {
   if (!point || typeof point !== 'object') return null;
 
   const x = Number(point.x);
   const y = Number(point.y);
   const name = String(point.name || '').trim();
-  const range = String(point.range || '').trim();
+  const range = normalizeMapRangeLabel(point.range);
   const id = String(point.id || `map-point-${index + 1}`).trim() || `map-point-${index + 1}`;
   const category = String(point.category || '').trim() || '未知';
   const desc = String(point.desc || '').trim() || '暂无详细描述信息。';
@@ -724,9 +750,10 @@ async function generateMapDataFromApi() {
   const expectedChatId = getCurrentBleachPhoneMapChatId();
   setMapGenerationStatus('地图生成中…', 'loading');
   renderActiveMapWindow();
+  let aiReplyText = '';
   try {
-    const replyText = await requestAiMapReply();
-    const parsedResult = parseMapAiResponse(replyText);
+    aiReplyText = await requestAiMapReply();
+    const parsedResult = parseMapAiResponse(aiReplyText);
     bleachMap.loadData(parsedResult.points);
     if (parsedResult.player) {
       bleachMap.updatePlayerPosition(parsedResult.player.x, parsedResult.player.y);
@@ -744,6 +771,9 @@ async function generateMapDataFromApi() {
       : `生成失败：${String(error?.message || '未知错误').trim() || '未知错误'}`;
     setMapGenerationStatus(message, 'error');
     console.error('[地图] 生成失败', error);
+    if (aiReplyText) {
+      console.error('[地图] AI 原始回复内容：\n' + aiReplyText);
+    }
     renderActiveMapWindow();
     return false;
   }
@@ -810,7 +840,7 @@ class BleachMap {
   }
 
   getCurrentRange() {
-    return this.ranges[this.currentRangeIndex] || this.ranges[0] || { label: '100m', totalSpan: 100 };
+    return this.ranges[this.currentRangeIndex] || this.ranges[0] || { label: '100m', radius: 100 };
   }
 
   getCurrentRangeLabel() {
@@ -820,6 +850,31 @@ class BleachMap {
   getSelectedPoint() {
     if (!selectedMapPointId) return null;
     return this.points.find((point) => String(point.id) === String(selectedMapPointId)) || null;
+  }
+
+  getCurrentRangePoints() {
+    const currentRangeLabel = this.getCurrentRangeLabel();
+    return this.points.filter((point) => point.range === currentRangeLabel);
+  }
+
+  selectCurrentRangePoint(step = 1) {
+    const normalizedStep = step < 0 ? -1 : 1;
+    const hasSelectedPoint = Boolean(String(selectedMapPointId || '').trim());
+    if (!hasSelectedPoint) return false;
+
+    const currentRangePoints = this.getCurrentRangePoints();
+    if (!currentRangePoints.length) return false;
+
+    const currentIndex = currentRangePoints.findIndex((point) => String(point.id) === String(selectedMapPointId));
+    const nextIndex = currentIndex >= 0
+      ? (currentIndex + normalizedStep + currentRangePoints.length) % currentRangePoints.length
+      : (normalizedStep > 0 ? 0 : currentRangePoints.length - 1);
+    const nextPoint = currentRangePoints[nextIndex] || null;
+    if (!nextPoint) return false;
+
+    this.showDescription(nextPoint);
+    this.render();
+    return true;
   }
 
   resolvePointColor(point) {
@@ -927,7 +982,10 @@ class BleachMap {
     const range = this.getCurrentRange();
     const safePadding = 12;
     const usableWidth = Math.max(viewWidth - safePadding * 2, 1);
-    const scale = usableWidth / range.totalSpan;
+    const rangeRadius = Number(range.radius);
+    const safeRangeRadius = Number.isFinite(rangeRadius) && rangeRadius > 0 ? rangeRadius : 100;
+    const visibleDiameter = safeRangeRadius * 2;
+    const scale = usableWidth / visibleDiameter;
     const pxPerGrid = usableWidth / 10;
 
     this.gridLayer.style.backgroundSize = `${pxPerGrid}px ${pxPerGrid}px`;
@@ -938,17 +996,17 @@ class BleachMap {
 
     this.viewportContent.innerHTML = '';
 
-    this.points.forEach((point) => {
-      if (point.range !== range.label) return;
-
+    const currentRangePoints = this.getCurrentRangePoints();
+    currentRangePoints.forEach((point) => {
       const dx = point.x - this.playerPos.x;
       const dy = point.y - this.playerPos.y;
       const px = dx * scale;
       const py = -dy * scale;
       const color = this.resolvePointColor(point);
+      const isSelected = String(point.id) === String(selectedMapPointId);
 
       const pointElement = document.createElement('div');
-      pointElement.className = 'map-point';
+      pointElement.className = `map-point${isSelected ? ' is-selected' : ''}`;
       pointElement.style.left = `${px}px`;
       pointElement.style.top = `${py}px`;
       pointElement.innerHTML = `
@@ -958,6 +1016,7 @@ class BleachMap {
       pointElement.addEventListener('click', (event) => {
         event.stopPropagation();
         this.showDescription(point);
+        this.render();
       });
 
       this.viewportContent.appendChild(pointElement);
@@ -1177,6 +1236,14 @@ function moveMapSelection(direction) {
     return;
   }
 
+  if (direction === 'up') {
+    bleachMap.selectCurrentRangePoint(-1);
+    return;
+  }
+  if (direction === 'down') {
+    bleachMap.selectCurrentRangePoint(1);
+    return;
+  }
   if (direction === 'left') {
     zoomMapRange(-1);
     return;

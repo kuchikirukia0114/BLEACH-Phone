@@ -350,22 +350,22 @@
 
 ---
 
-## 2.17 改新闻区 / radio
+## 2.17 改新闻 / news
 例如：
 - 新闻列表内容
 - 新闻详情打开/关闭
 - 选中逻辑
 
 先看：
-- `BLEACH-Phone/scripts/apps/radio/index.js`
-- `BLEACH-Phone/styles/apps/radio/index.css`
+- `BLEACH-Phone/scripts/apps/news/index.js`
+- `BLEACH-Phone/styles/apps/news/index.css`
 - `BLEACH-Phone/scripts/main.js`
 
 建议搜索关键词：
-- `radioNewsEntries`
-- `openRadioNewsDetail`
-- `closeRadioNewsDetail`
-- `radio-news-item`
+- `newsEntries`
+- `openNewsDetail`
+- `closeNewsDetail`
+- `news-item`
 
 ---
 

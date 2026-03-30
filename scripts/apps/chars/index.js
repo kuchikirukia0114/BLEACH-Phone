@@ -505,9 +505,10 @@ async function generateCharsDataFromApi() {
   const expectedChatId = getCurrentBleachPhoneCharsChatId();
   setCharsGenerationStatus('情报生成中…', 'loading');
   renderActiveCharsWindow();
+  let aiReplyText = '';
   try {
-    const replyText = await requestAiCharsReply();
-    const parsedResult = parseCharsAiResponse(replyText);
+    aiReplyText = await requestAiCharsReply();
+    const parsedResult = parseCharsAiResponse(aiReplyText);
     loadCharsData(parsedResult.characters, { render: false });
     const variableSynced = await syncBleachPhoneCharsVariableFromParsedResult(parsedResult, { expectedChatId });
     if (!variableSynced) {
@@ -522,6 +523,9 @@ async function generateCharsDataFromApi() {
       : `生成失败：${String(error?.message || '未知错误').trim() || '未知错误'}`;
     setCharsGenerationStatus(message, 'error');
     console.error('[情报] 生成失败', error);
+    if (aiReplyText) {
+      console.error('[情报] AI 原始回复内容：\n' + aiReplyText);
+    }
     renderActiveCharsWindow();
     return false;
   }

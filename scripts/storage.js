@@ -598,6 +598,47 @@ function getNextAiApiProfileName(settingsSource = aiSettings) {
   return (Array.isArray(settings.apiProfiles) && settings.apiProfiles.length) ? `API ${settings.apiProfiles.length + 1}` : '默认';
 }
 
+function createAiWorldBookSelectionId(index = 0) {
+  return `worldbook_selection_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createAiWorldBookInfoBindingId(index = 0) {
+  return `worldbook_info_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeAiWorldBookInfoBindings(bindings) {
+  if (!Array.isArray(bindings)) return [];
+  return bindings
+    .map((binding, index) => ({
+      id: typeof binding?.id === 'string' && binding.id.trim() ? binding.id.trim() : createAiWorldBookInfoBindingId(index),
+      sourceId: typeof binding?.sourceId === 'string' ? binding.sourceId.trim() : '',
+      sourceName: typeof binding?.sourceName === 'string' ? binding.sourceName.trim() : '',
+      sourceScope: typeof binding?.sourceScope === 'string' ? binding.sourceScope.trim() : ''
+    }))
+    .filter((binding) => binding.sourceId || binding.sourceName)
+    .slice(0, 50);
+}
+
+function normalizeAiWorldBookEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => ({
+      id: typeof entry?.id === 'string' && entry.id.trim() ? entry.id.trim() : createAiWorldBookSelectionId(index),
+      sourceId: typeof entry?.sourceId === 'string' && entry.sourceId.trim()
+        ? entry.sourceId.trim()
+        : `${typeof entry?.scope === 'string' && entry.scope.trim() ? entry.scope.trim() : 'global'}:${typeof entry?.name === 'string' ? entry.name.trim() : ''}`,
+      name: typeof entry?.name === 'string' ? entry.name.trim() : '',
+      scope: typeof entry?.scope === 'string' && entry.scope.trim() ? entry.scope.trim() : 'global',
+      ownerId: typeof entry?.ownerId === 'string' ? entry.ownerId.trim() : '',
+      mainChatContextN: entry?.mainChatContextN === '' || entry?.mainChatContextN == null ? '10' : clampAiIntegerSetting(entry.mainChatContextN, 0, 99, '10'),
+      mainChatUserN: entry?.mainChatUserN === '' || entry?.mainChatUserN == null ? '' : clampAiIntegerSetting(entry.mainChatUserN, 0, 99, ''),
+      mainChatXmlRules: normalizeAiMainChatRules(entry?.mainChatXmlRules),
+      infoSourceBindings: normalizeAiWorldBookInfoBindings(entry?.infoSourceBindings)
+    }))
+    .filter((entry) => entry.name)
+    .slice(0, 100);
+}
+
 function normalizeAiSettings(settings) {
   const nextSettings = settings && typeof settings === 'object' ? settings : {};
   const apiProfiles = normalizeAiApiProfiles(nextSettings.apiProfiles, nextSettings);
@@ -612,8 +653,9 @@ function normalizeAiSettings(settings) {
   const selectedMapPresetId = resolveSelectedAiPresetId(nextSettings.selectedMapPresetId || selectedPresetId, presetEntries);
   const selectedWeatherPresetId = resolveSelectedAiPresetId(nextSettings.selectedWeatherPresetId || selectedPresetId, presetEntries);
   const selectedItemsPresetId = resolveSelectedAiPresetId(nextSettings.selectedItemsPresetId || selectedPresetId, presetEntries);
-  const selectedRadioPresetId = resolveSelectedAiPresetId(nextSettings.selectedRadioPresetId || selectedPresetId, presetEntries);
+  const selectedNewsPresetId = resolveSelectedAiPresetId(nextSettings.selectedNewsPresetId || selectedPresetId, presetEntries);
   const selectedCharsPresetId = resolveSelectedAiPresetId(nextSettings.selectedCharsPresetId || selectedPresetId, presetEntries);
+  const worldBookEntries = normalizeAiWorldBookEntries(nextSettings.worldBookEntries);
   const selectedPreset = getAiPresetEntryById(selectedPresetId, { presetEntries }) || null;
   const mapAutoGenerateEnabled = Boolean(nextSettings.mapAutoGenerateEnabled);
   const mapAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.mapAutoGenerateTrigger || '').trim())
@@ -630,11 +672,11 @@ function normalizeAiSettings(settings) {
     ? String(nextSettings.itemsAutoGenerateTrigger).trim()
     : 'assistant';
   const itemsAutoGenerateInterval = clampAiIntegerSetting(nextSettings.itemsAutoGenerateInterval, 1, 99, '1');
-  const radioAutoGenerateEnabled = Boolean(nextSettings.radioAutoGenerateEnabled);
-  const radioAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.radioAutoGenerateTrigger || '').trim())
-    ? String(nextSettings.radioAutoGenerateTrigger).trim()
+  const newsAutoGenerateEnabled = Boolean(nextSettings.newsAutoGenerateEnabled);
+  const newsAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.newsAutoGenerateTrigger || '').trim())
+    ? String(nextSettings.newsAutoGenerateTrigger).trim()
     : 'assistant';
-  const radioAutoGenerateInterval = clampAiIntegerSetting(nextSettings.radioAutoGenerateInterval, 1, 99, '1');
+  const newsAutoGenerateInterval = clampAiIntegerSetting(nextSettings.newsAutoGenerateInterval, 1, 99, '1');
   const charsAutoGenerateEnabled = Boolean(nextSettings.charsAutoGenerateEnabled);
   const charsAutoGenerateTrigger = ['assistant', 'user'].includes(String(nextSettings.charsAutoGenerateTrigger || '').trim())
     ? String(nextSettings.charsAutoGenerateTrigger).trim()
@@ -651,8 +693,9 @@ function normalizeAiSettings(settings) {
     selectedMapPresetId,
     selectedWeatherPresetId,
     selectedItemsPresetId,
-    selectedRadioPresetId,
+    selectedNewsPresetId,
     selectedCharsPresetId,
+    worldBookEntries,
     mapAutoGenerateEnabled,
     mapAutoGenerateTrigger,
     mapAutoGenerateInterval,
@@ -662,9 +705,9 @@ function normalizeAiSettings(settings) {
     itemsAutoGenerateEnabled,
     itemsAutoGenerateTrigger,
     itemsAutoGenerateInterval,
-    radioAutoGenerateEnabled,
-    radioAutoGenerateTrigger,
-    radioAutoGenerateInterval,
+    newsAutoGenerateEnabled,
+    newsAutoGenerateTrigger,
+    newsAutoGenerateInterval,
     charsAutoGenerateEnabled,
     charsAutoGenerateTrigger,
     charsAutoGenerateInterval,
@@ -760,8 +803,9 @@ function saveAiSettings(overrides = {}) {
     selectedMapPresetId: overrides.selectedMapPresetId ?? currentMapPresetId ?? currentSettings.selectedMapPresetId,
     selectedWeatherPresetId: overrides.selectedWeatherPresetId ?? currentWeatherPresetId ?? currentSettings.selectedWeatherPresetId,
     selectedItemsPresetId: overrides.selectedItemsPresetId ?? currentItemsPresetId ?? currentSettings.selectedItemsPresetId,
-    selectedRadioPresetId: overrides.selectedRadioPresetId ?? currentRadioPresetId ?? currentSettings.selectedRadioPresetId,
+    selectedNewsPresetId: overrides.selectedNewsPresetId ?? currentNewsPresetId ?? currentSettings.selectedNewsPresetId,
     selectedCharsPresetId: overrides.selectedCharsPresetId ?? currentCharsPresetId ?? currentSettings.selectedCharsPresetId,
+    worldBookEntries: overrides.worldBookEntries ?? currentSettings.worldBookEntries,
     mapAutoGenerateEnabled: overrides.mapAutoGenerateEnabled ?? currentSettings.mapAutoGenerateEnabled,
     mapAutoGenerateTrigger: overrides.mapAutoGenerateTrigger ?? currentSettings.mapAutoGenerateTrigger,
     mapAutoGenerateInterval: overrides.mapAutoGenerateInterval ?? currentSettings.mapAutoGenerateInterval,
@@ -771,9 +815,9 @@ function saveAiSettings(overrides = {}) {
     itemsAutoGenerateEnabled: overrides.itemsAutoGenerateEnabled ?? currentSettings.itemsAutoGenerateEnabled,
     itemsAutoGenerateTrigger: overrides.itemsAutoGenerateTrigger ?? currentSettings.itemsAutoGenerateTrigger,
     itemsAutoGenerateInterval: overrides.itemsAutoGenerateInterval ?? currentSettings.itemsAutoGenerateInterval,
-    radioAutoGenerateEnabled: overrides.radioAutoGenerateEnabled ?? currentSettings.radioAutoGenerateEnabled,
-    radioAutoGenerateTrigger: overrides.radioAutoGenerateTrigger ?? currentSettings.radioAutoGenerateTrigger,
-    radioAutoGenerateInterval: overrides.radioAutoGenerateInterval ?? currentSettings.radioAutoGenerateInterval,
+    newsAutoGenerateEnabled: overrides.newsAutoGenerateEnabled ?? currentSettings.newsAutoGenerateEnabled,
+    newsAutoGenerateTrigger: overrides.newsAutoGenerateTrigger ?? currentSettings.newsAutoGenerateTrigger,
+    newsAutoGenerateInterval: overrides.newsAutoGenerateInterval ?? currentSettings.newsAutoGenerateInterval,
     charsAutoGenerateEnabled: overrides.charsAutoGenerateEnabled ?? currentSettings.charsAutoGenerateEnabled,
     charsAutoGenerateTrigger: overrides.charsAutoGenerateTrigger ?? currentSettings.charsAutoGenerateTrigger,
     charsAutoGenerateInterval: overrides.charsAutoGenerateInterval ?? currentSettings.charsAutoGenerateInterval,
@@ -811,7 +855,7 @@ function setPendingAiSettings(settings = aiSettings) {
   currentMapPresetId = resolveSelectedAiPresetId(nextSettings.selectedMapPresetId || currentAiPresetId, pendingAiPresetEntries);
   currentWeatherPresetId = resolveSelectedAiPresetId(nextSettings.selectedWeatherPresetId || currentAiPresetId, pendingAiPresetEntries);
   currentItemsPresetId = resolveSelectedAiPresetId(nextSettings.selectedItemsPresetId || currentAiPresetId, pendingAiPresetEntries);
-  currentRadioPresetId = resolveSelectedAiPresetId(nextSettings.selectedRadioPresetId || currentAiPresetId, pendingAiPresetEntries);
+  currentNewsPresetId = resolveSelectedAiPresetId(nextSettings.selectedNewsPresetId || currentAiPresetId, pendingAiPresetEntries);
   currentCharsPresetId = resolveSelectedAiPresetId(nextSettings.selectedCharsPresetId || currentAiPresetId, pendingAiPresetEntries);
   pendingAiPresetName = getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.name || '';
   pendingAiPresetBlocks = normalizeAiPresetBlocks(getAiPresetEntryById(currentAiPresetId, { presetEntries: pendingAiPresetEntries })?.blocks || nextSettings.presetBlocks);

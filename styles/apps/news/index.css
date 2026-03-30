@@ -1,0 +1,158 @@
+﻿.app-window.news-hudless .app-footer {
+  display: none;
+}
+
+.app-window.news-hudless .app-body {
+  padding-bottom: 8px;
+}
+
+  .news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .news-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 5px 7px;
+    border: 1px solid var(--window-box-border);
+    border-left-width: 2px;
+    background: var(--window-list-bg);
+    color: var(--window-text);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  body.theme-black .news-item {
+    background: linear-gradient(145deg, rgba(8, 13, 24, 0.9), rgba(5, 7, 13, 0.95));
+    border-color: #121a2b;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02);
+    border-radius: 2px;
+  }
+  .news-item.is-selected {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px var(--menu-hover-shadow);
+    color: var(--accent);
+  }
+  body.theme-black .news-item.is-selected {
+    background: linear-gradient(145deg, rgba(38, 24, 66, 0.5), rgba(16, 11, 28, 0.8));
+    border-color: #9d7dff;
+    box-shadow: 
+      inset 0 0 0 1px rgba(157, 125, 255, 0.25), 
+      0 0 8px rgba(135, 94, 255, 0.35);
+    color: #dfcdff;
+  }
+  body.theme-white .news-item {
+    border-color: #ddd1c0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 243, 236, 0.985) 100%);
+    color: #8f7964;
+    border-radius: 9px;
+  }
+  body.theme-white .news-item.is-selected {
+    border-color: #cfbea8;
+    box-shadow: none;
+    background: linear-gradient(135deg, rgba(255, 253, 249, 0.995) 0%, rgba(244, 238, 229, 0.995) 54%, rgba(236, 227, 213, 0.995) 100%);
+    color: #8b735b;
+  }
+  .news-title {
+    color: inherit;
+    font-size: calc(11px * var(--ui-font-scale));
+    line-height: 1.35;
+  }
+  .news-meta {
+    color: var(--window-soft);
+    font-size: calc(10px * var(--ui-font-scale));
+    opacity: 0.86;
+    letter-spacing: 0.5px;
+  }
+  .news-item.is-selected .news-meta {
+    color: var(--accent-soft);
+  }
+  body.theme-black .news-item.is-selected .news-meta {
+    color: #bfa6ff;
+    text-shadow: 0 0 4px rgba(157, 125, 255, 0.4);
+  }
+  body.theme-white .news-title {
+    color: #92795e;
+  }
+  body.theme-white .news-meta {
+    color: #a48b74;
+  }
+  body.theme-white .news-item.is-selected .news-title {
+    color: #927459;
+  }
+  body.theme-white .news-item.is-selected .news-meta {
+    color: #a07f66;
+  }
+  .news-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-height: 0;
+  }
+  .news-detail-head {
+    display: none;
+  }
+  .news-detail-title {
+    color: var(--accent);
+    font-size: calc(11px * var(--ui-font-scale));
+    line-height: 1.55;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  body.theme-black .news-detail-title {
+    color: #1a75ff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 6px rgba(26, 117, 255, 0.5);
+    letter-spacing: 0.5px;
+  }
+  .news-detail-meta {
+    color: var(--window-soft);
+    font-size: calc(10px * var(--ui-font-scale));
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    opacity: 0.82;
+  }
+  body.theme-black .news-detail-meta {
+    color: #a8d1fc;
+    opacity: 0.7;
+    border-bottom: 1px solid rgba(109, 178, 255, 0.15);
+    padding-bottom: 6px;
+  }
+  .news-detail-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0;
+    color: var(--window-text);
+    line-height: 1.8;
+    font-size: calc(11px * var(--ui-font-scale));
+    white-space: normal;
+    overflow-wrap: anywhere;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  body.theme-black .news-detail-body {
+    color: #e6e8e6; /* 骨白色 */
+    text-shadow: 0 1px 1px rgba(0,0,0,0.9);
+  }
+  .news-detail-body p {
+    margin: 0 0 8px;
+  }
+  .news-detail-body p:last-child {
+    margin-bottom: 0;
+  }
+  .news-scroll-hint {
+    margin-top: 6px;
+    color: var(--window-soft);
+    font-size: calc(10px * var(--ui-font-scale));
+    opacity: 0.72;
+  }
+

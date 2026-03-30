@@ -1,6 +1,5 @@
 // 全局状态与基础配置（从 main.js 渐进拆出）
 
-let isAlerting = false;
 let isClosed = false;
 let isScreenSaverActive = false;
 // 手机显示时间；为 null 时跟随电脑系统时间
@@ -73,6 +72,11 @@ let selectedAiPresetWorldBookIndex = -1;
 let pendingAiPresetBlockDraft = null;
 let aiPresetWorldBookOptions = [];
 let aiPresetWorldBookStatus = '';
+let editingWorldBookIndex = -1;
+let selectedWorldBookEntrySettingsIndex = 0;
+let selectedWorldBookInfoBindingIndex = -1;
+let worldBookTriggeredPreviewText = '';
+let worldBookTriggeredPreviewStatus = '';
 let aiPresetPreviewTitle = '';
 let aiPresetPreviewText = '';
 let aiPresetPreviewStatus = '';
@@ -147,21 +151,21 @@ let settingsView = 'list';
 let selectedSettingsIndex = 0;
 let recordsView = 'videoList';
 let selectedRecordsIndex = 0;
-let radioView = 'list';
-let selectedRadioNewsIndex = 0;
-let radioListScrollTop = 0;
-let radioDetailScrollTop = 0;
-let selectedRadioSettingsIndex = 0;
-let radioSettingsListScrollTop = 0;
-let selectedRadioApiProfileIndex = -1;
-let radioApiProfileListScrollTop = 0;
-let currentRadioPresetId = '';
-let selectedRadioPresetIndex = -1;
-let radioPresetListScrollTop = 0;
-let selectedRadioAutoGenerateIndex = 0;
-let radioAutoGenerateListScrollTop = 0;
-let radioRequestStatus = 'idle';
-let radioGenerationStatusMessage = '';
+let newsView = 'list';
+let selectedNewsIndex = 0;
+let newsListScrollTop = 0;
+let newsDetailScrollTop = 0;
+let selectedNewsSettingsIndex = 0;
+let newsSettingsListScrollTop = 0;
+let selectedNewsApiProfileIndex = -1;
+let newsApiProfileListScrollTop = 0;
+let currentNewsPresetId = '';
+let selectedNewsPresetIndex = -1;
+let newsPresetListScrollTop = 0;
+let selectedNewsAutoGenerateIndex = 0;
+let newsAutoGenerateListScrollTop = 0;
+let newsRequestStatus = 'idle';
+let newsGenerationStatusMessage = '';
 let charsView = 'list';
 let selectedCharsSettingsIndex = 0;
 let charsSettingsListScrollTop = 0;
@@ -204,7 +208,7 @@ let dataStatusMessage = '';
 const menuColumns = 3;
 const themeOptionsOrder = ['black', 'white'];
 const fontSizeOptionsOrder = ['small', 'medium', 'large', 'xlarge'];
-const settingsRowOrder = ['theme', 'fontSize', 'screensaver', 'aiPrompt', 'aiPromptOverview', 'aiMainChat', 'aiConfig'];
+const settingsRowOrder = ['theme', 'fontSize', 'screensaver', 'aiPrompt', 'aiPromptOverview', 'worldBook', 'aiMainChat', 'aiConfig'];
 const recordsMenuOrder = ['video'];
 const dataCategoryOrder = ['records', 'music', 'preset'];
 const aiApiBindingOptions = [
@@ -213,7 +217,7 @@ const aiApiBindingOptions = [
   { key: 'map', label: '地图' },
   { key: 'weather', label: '天气' },
   { key: 'items', label: '物品' },
-  { key: 'radio', label: '广播' },
+  { key: 'news', label: '新闻' },
   { key: 'chars', label: '情报' }
 ];
 const themeModules = {

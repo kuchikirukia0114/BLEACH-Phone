@@ -36,11 +36,7 @@
   }
   .grid-item:hover,
   .grid-item.is-selected {
-    color: var(--accent-soft);
-  }
-  body.theme-black .grid-item:hover,
-  body.theme-black .grid-item.is-selected {
-    color: #cc0000;
+    color: var(--menu-active-color, var(--accent-soft));
   }
   .grid-item .icon {
     width: 22px;
@@ -66,13 +62,8 @@
   }
   .grid-item:hover .icon svg,
   .grid-item.is-selected .icon svg {
-    stroke: var(--accent-soft);
-    filter: drop-shadow(0 0 3px var(--signal-glow));
-  }
-  body.theme-black .grid-item:hover .icon svg,
-  body.theme-black .grid-item.is-selected .icon svg {
-    stroke: #cc0000;
-    filter: drop-shadow(0 0 2px var(--signal-glow));
+    stroke: currentColor;
+    filter: drop-shadow(0 0 var(--menu-icon-glow-size, 3px) var(--menu-icon-glow-color, var(--signal-glow)));
   }
   .app-window {
     position: absolute;
@@ -195,16 +186,16 @@
   .app-body,
   .settings-editor-input,
   .screensaver-saved-list,
-  .radio-news-list,
-  .radio-news-detail-body {
+  .news-list,
+  .news-detail-body {
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
   .app-body::-webkit-scrollbar,
   .settings-editor-input::-webkit-scrollbar,
   .screensaver-saved-list::-webkit-scrollbar,
-  .radio-news-list::-webkit-scrollbar,
-  .radio-news-detail-body::-webkit-scrollbar {
+  .news-list::-webkit-scrollbar,
+  .news-detail-body::-webkit-scrollbar {
     width: 0;
     height: 0;
     display: none;

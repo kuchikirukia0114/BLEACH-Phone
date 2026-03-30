@@ -1,7 +1,7 @@
 ﻿  .settings-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
   .settings-editor {
     display: flex;
@@ -198,11 +198,26 @@
     font-size: calc(11px * var(--ui-font-scale));
     cursor: pointer;
     box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  body.theme-black .setting-row {
+    background: linear-gradient(145deg, rgba(8, 13, 24, 0.9), rgba(5, 7, 13, 0.95));
+    border-color: #121a2b;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02);
+    border-radius: 2px;
   }
   .setting-row.is-selected {
     border-color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--accent), 0 0 6px var(--menu-hover-shadow);
     color: var(--accent);
+  }
+  body.theme-black .setting-row.is-selected {
+    background: linear-gradient(145deg, rgba(18, 43, 84, 0.4), rgba(7, 11, 20, 0.8));
+    border-color: #4da6ff;
+    box-shadow: 
+      inset 0 0 0 1px rgba(77, 166, 255, 0.15), 
+      0 0 8px rgba(109, 178, 255, 0.25);
+    color: #bce1ff;
   }
   body.theme-black .ai-preset-block-move-button {
     border-radius: 0;
@@ -229,6 +244,11 @@
     flex: 1;
     min-width: 0;
     letter-spacing: 0.6px;
+    font-weight: bold;
+    color: var(--window-text);
+  }
+  body.theme-black .setting-row-label {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
   .setting-row-value-wrap {
     display: flex;
@@ -237,6 +257,7 @@
     color: var(--window-soft);
     white-space: nowrap;
     min-width: 0;
+    opacity: 0.85;
   }
   .setting-row-value {
     display: inline-block;
@@ -270,6 +291,10 @@
   .setting-row.is-selected .setting-row-value-wrap {
     color: var(--accent-soft);
   }
+  body.theme-black .setting-row.is-selected .setting-row-value-wrap {
+    color: #9ed0ff;
+    text-shadow: 0 0 4px rgba(158, 208, 255, 0.4);
+  }
   body.theme-white .setting-row-label {
     color: #92795e;
   }
@@ -281,13 +306,13 @@
     color: #927459;
   }
   .setting-row.is-ready {
-    border-color: #6b9f65;
-    background: rgba(107, 159, 101, 0.08);
-    color: #8fb689;
+    border-color: #3b7a57;
+    background: rgba(59, 122, 87, 0.15);
+    color: #8bd4a9;
   }
   .setting-row.is-ready .setting-row-label,
   .setting-row.is-ready .setting-row-value-wrap {
-    color: #8fb689;
+    color: #8bd4a9;
   }
   body.theme-white .setting-row.is-ready {
     border-color: #a8c9a2;
@@ -299,13 +324,13 @@
     color: #7e9f79;
   }
   .setting-row.is-error {
-    border-color: #b96f6f;
-    background: rgba(185, 111, 111, 0.1);
-    color: #d79a9a;
+    border-color: #9c3c52;
+    background: rgba(156, 60, 82, 0.15);
+    color: #e88fa2;
   }
   .setting-row.is-error .setting-row-label,
   .setting-row.is-error .setting-row-value-wrap {
-    color: #d79a9a;
+    color: #e88fa2;
   }
   body.theme-white .setting-row.is-error {
     border-color: #d7a2a2;

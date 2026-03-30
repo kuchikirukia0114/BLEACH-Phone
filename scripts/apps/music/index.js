@@ -249,30 +249,30 @@ function getMusicDefaultDiscMarkup(hasCover = false) {
   return `
     <svg class="music-player-disc-art" viewBox="0 0 100 100" aria-hidden="true">
       <defs>
-        <filter id="music-disc-red-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="music-disc-purple-glow" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="1.25" result="blur"></feGaussianBlur>
           <feMerge>
             <feMergeNode in="blur"></feMergeNode>
             <feMergeNode in="SourceGraphic"></feMergeNode>
           </feMerge>
         </filter>
-        <linearGradient id="music-disc-red-shine" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#ff0000" stop-opacity="0"></stop>
-          <stop offset="30%" stop-color="#ff0000" stop-opacity="0.04"></stop>
+        <linearGradient id="music-disc-purple-shine" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#9d7dff" stop-opacity="0"></stop>
+          <stop offset="30%" stop-color="#9d7dff" stop-opacity="0.04"></stop>
           <stop offset="50%" stop-color="#ffffff" stop-opacity="0.18"></stop>
-          <stop offset="70%" stop-color="#ff0000" stop-opacity="0.04"></stop>
-          <stop offset="100%" stop-color="#ff0000" stop-opacity="0"></stop>
+          <stop offset="70%" stop-color="#9d7dff" stop-opacity="0.04"></stop>
+          <stop offset="100%" stop-color="#9d7dff" stop-opacity="0"></stop>
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="45" fill="#0a0000" stroke="#ff0033" stroke-width="2" stroke-opacity="0.78" filter="url(#music-disc-red-glow)"></circle>
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#660000" stroke-width="0.5"></circle>
-      <circle cx="50" cy="50" r="32" fill="none" stroke="#990000" stroke-width="0.5"></circle>
-      <circle cx="50" cy="50" r="26" fill="none" stroke="#660000" stroke-width="0.5"></circle>
-      <circle cx="50" cy="50" r="44" fill="url(#music-disc-red-shine)" opacity="0.76"></circle>
-      <circle cx="50" cy="50" r="44" fill="url(#music-disc-red-shine)" transform="rotate(90 50 50)" opacity="0.22"></circle>
+      <circle cx="50" cy="50" r="45" fill="#090611" stroke="#9d7dff" stroke-width="2" stroke-opacity="0.78" filter="url(#music-disc-purple-glow)"></circle>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#4d3a86" stroke-width="0.5"></circle>
+      <circle cx="50" cy="50" r="32" fill="none" stroke="#6f52bf" stroke-width="0.5"></circle>
+      <circle cx="50" cy="50" r="26" fill="none" stroke="#4d3a86" stroke-width="0.5"></circle>
+      <circle cx="50" cy="50" r="44" fill="url(#music-disc-purple-shine)" opacity="0.76"></circle>
+      <circle cx="50" cy="50" r="44" fill="url(#music-disc-purple-shine)" transform="rotate(90 50 50)" opacity="0.22"></circle>
       ${hasCover ? '' : `
-        <circle cx="50" cy="50" r="16" fill="#1a0000" stroke="#ff0000" stroke-width="1.5" filter="url(#music-disc-red-glow)"></circle>
-        <circle cx="50" cy="50" r="3.5" fill="#000000" stroke="#440000" stroke-width="1"></circle>
+        <circle cx="50" cy="50" r="16" fill="#151022" stroke="#9d7dff" stroke-width="1.5" filter="url(#music-disc-purple-glow)"></circle>
+        <circle cx="50" cy="50" r="3.5" fill="#000000" stroke="#37295f" stroke-width="1"></circle>
       `}
     </svg>
   `;

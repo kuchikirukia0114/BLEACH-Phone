@@ -404,6 +404,7 @@ function formatPhoneDisplayTime(now = getPhoneDisplayTimeValue()) {
   const day = String(now.getDate()).padStart(2, '0');
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
+  const weekdayStr = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][now.getDay()] || '';
   return {
     now,
     year,
@@ -411,6 +412,7 @@ function formatPhoneDisplayTime(now = getPhoneDisplayTimeValue()) {
     day,
     hours,
     minutes,
+    weekdayStr,
     timeStr: `${hours}:${minutes}`,
     dateStr: `${year}.${month}.${day}`
   };
@@ -429,16 +431,20 @@ function getPhoneDisplayDateTimeLabel() {
 }
 
 function updateTime() {
-  const { timeStr, dateStr } = formatPhoneDisplayTime();
+  const { timeStr, dateStr, weekdayStr } = formatPhoneDisplayTime();
   updateRealtimeStatusBar(timeStr);
   document.getElementById('screen-saver-time').textContent = timeStr;
-  document.getElementById('screen-saver-date').textContent = dateStr;
-  if (!isAlerting) {
-    const currentEntry = screenSaverEntries[currentScreenSaverEntryIndex] || null;
-    document.getElementById('outer-time').textContent = isScreenSaverActive
-      ? getScreenSaverEntryLabel(currentEntry)
-      : timeStr;
+  const screenSaverDateText = document.getElementById('screen-saver-date-text');
+  const screenSaverWeekday = document.getElementById('screen-saver-weekday');
+  if (screenSaverDateText && screenSaverWeekday) {
+    screenSaverDateText.textContent = dateStr;
+    screenSaverWeekday.textContent = weekdayStr;
+  } else {
+    document.getElementById('screen-saver-date').textContent = weekdayStr
+      ? `${dateStr} ${weekdayStr}`
+      : dateStr;
   }
+  document.getElementById('outer-time').textContent = timeStr;
   if (typeof handleWeatherTimeBucketChange === 'function') {
     handleWeatherTimeBucketChange();
   }
@@ -522,12 +528,12 @@ const appData = {
     sub: '',
     list: []
   },
-  radio: {
-    title: '新闻区',
+  news: {
+    title: '新闻',
     kicker: 'NEWS FEED',
-    main: '短波播报接通',
+    main: '新闻频道接通',
     sub: '正在接收尸魂界新闻简报与紧急通知。',
-    list: [['频段', '88.4'], ['信号', '良好'], ['内容', '播送中']]
+    list: [['频道', '88.4'], ['信号', '良好'], ['内容', '播送中']]
   },
   data: {
     title: '数据',
@@ -538,7 +544,7 @@ const appData = {
   }
 };
 
-let radioNewsEntries = [
+let newsEntries = [
   {
     title: '现世监测局发布夜间灵压波动预警',
     source: '尸魂界即时台',
@@ -614,6 +620,9 @@ function setScreenSaverActive(active) {
   if (screenSaver) {
     screenSaver.classList.toggle('active', active);
   }
+  if (typeof syncScreenSaverVideoPlayback === 'function') {
+    syncScreenSaverVideoPlayback();
+  }
   updateTime();
 }
 
@@ -636,10 +645,11 @@ function selectMenuItemByApp(appKey) {
 }
 
 function openMenuShortcut(shortcutKey) {
-  if (isClosed || isAlerting) return;
+  if (isClosed) return;
 
-  const shortcutIndex = Number(shortcutKey) - 1;
-  if (!Number.isInteger(shortcutIndex) || shortcutIndex < 0) return;
+  const normalizedShortcutKey = String(shortcutKey || '').trim();
+  const shortcutIndex = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0'].indexOf(normalizedShortcutKey);
+  if (shortcutIndex < 0) return;
 
   const item = getMenuItems()[shortcutIndex];
   if (!item) return;
@@ -763,7 +773,7 @@ function isAppWindowOpen() {
 }
 
 function confirmCurrentSelection() {
-  if (isClosed || isAlerting || isScreenSaverActive) return;
+  if (isClosed || isScreenSaverActive) return;
 
   if (isAppWindowOpen()) {
     if (currentAppKey === 'settings') {
@@ -918,6 +928,58 @@ function confirmCurrentSelection() {
         return;
       }
 
+      if (settingsView === 'worldBook') {
+        return;
+      }
+
+      if (settingsView === 'worldBookPicker') {
+        addSelectedWorldBookEntry();
+        return;
+      }
+
+      if (settingsView === 'worldBookEntry') {
+        if (selectedWorldBookEntrySettingsIndex === 0) {
+          openWorldBookMainChatSettings();
+        } else if (selectedWorldBookEntrySettingsIndex === 1) {
+          openWorldBookInfoBindings();
+        } else {
+          openWorldBookTriggeredPreview();
+        }
+        return;
+      }
+
+      if (settingsView === 'worldBookMainChat') {
+        const contextInput = document.getElementById('ai-mainchat-context-n-input');
+        const userNInput = document.getElementById('ai-mainchat-user-n-input');
+        if (contextInput) pendingAiMainChatContextN = contextInput.value;
+        if (userNInput) pendingAiMainChatUserN = userNInput.value;
+        saveEditingWorldBookMainChatSettings();
+        return;
+      }
+
+      if (settingsView === 'worldBookMainChatRules') {
+        saveEditingWorldBookMainChatSettings();
+        return;
+      }
+
+      if (settingsView === 'worldBookMainChatPreview') {
+        return;
+      }
+
+      if (settingsView === 'worldBookTriggeredPreview') {
+        return;
+      }
+
+      if (settingsView === 'worldBookInfoBindings') {
+        openWorldBookInfoSourcePicker();
+        return;
+      }
+
+      if (settingsView === 'worldBookInfoSourcePicker') {
+        addSelectedWorldBookInfoSourceBinding();
+        return;
+      }
+
       if (settingsRowOrder[selectedSettingsIndex] === 'theme') {
         applyTheme(themeOptionsOrder[pendingThemeIndex]);
         renderAppWindow('settings');
@@ -934,6 +996,9 @@ function confirmCurrentSelection() {
       }
       if (settingsRowOrder[selectedSettingsIndex] === 'aiPromptOverview') {
         openAiPromptOverviewList();
+      }
+      if (settingsRowOrder[selectedSettingsIndex] === 'worldBook') {
+        openWorldBookSettings();
       }
       if (settingsRowOrder[selectedSettingsIndex] === 'aiMainChat') {
         openAiMainChatConfig();
@@ -1062,25 +1127,25 @@ function confirmCurrentSelection() {
       }
     }
 
-    if (currentAppKey === 'radio') {
-      if (radioView === 'settings') {
-        openRadioSettingsSelection();
+    if (currentAppKey === 'news') {
+      if (newsView === 'settings') {
+        openNewsSettingsSelection();
         return;
       }
-      if (radioView === 'apiBinding') {
-        bindRadioApiProfileSelection();
+      if (newsView === 'apiBinding') {
+        bindNewsApiProfileSelection();
         return;
       }
-      if (radioView === 'preset') {
-        bindRadioPresetSelection();
+      if (newsView === 'preset') {
+        bindNewsPresetSelection();
         return;
       }
-      if (radioView === 'autoGenerate') {
-        confirmRadioAutoGenerateSelection();
+      if (newsView === 'autoGenerate') {
+        confirmNewsAutoGenerateSelection();
         return;
       }
-      if (radioView === 'list') {
-        openRadioNewsDetail(selectedRadioNewsIndex);
+      if (newsView === 'list') {
+        openNewsDetail(selectedNewsIndex);
       }
       return;
     }
@@ -1207,10 +1272,11 @@ function renderAppWindow(appKey) {
 
   currentAppKey = appKey;
   const appWindowEl = document.getElementById('app-window');
+  appWindowEl?.classList.toggle('sms-app', appKey === 'sms');
   appWindowEl?.classList.toggle('sms-chat-compact', appKey === 'sms' && contactView === 'chat');
   appWindowEl?.classList.toggle('map-immersive', appKey === 'map');
   appWindowEl?.classList.toggle('map-hudless', appKey === 'map' && mapView === 'map');
-  appWindowEl?.classList.toggle('radio-hudless', appKey === 'radio' && radioView === 'list');
+  appWindowEl?.classList.toggle('news-hudless', appKey === 'news' && newsView === 'list');
   appWindowEl?.classList.toggle('chars-hudless', appKey === 'chars' && charsView === 'list');
   appWindowEl?.classList.toggle('items-immersive', appKey === 'items' && itemsView === 'list');
   let appTitle = app.title;
@@ -1219,6 +1285,24 @@ function renderAppWindow(appKey) {
       appTitle = '预设';
     } else if (settingsView === 'aiPromptOverviewList') {
       appTitle = '提示词总览';
+    } else if (settingsView === 'worldBook') {
+      appTitle = '世界书';
+    } else if (settingsView === 'worldBookEntry') {
+      appTitle = getEditingWorldBookEntry()?.name || '世界书';
+    } else if (settingsView === 'worldBookMainChat') {
+      appTitle = '主聊天上下文';
+    } else if (settingsView === 'worldBookMainChatRules') {
+      appTitle = 'XML规则';
+    } else if (settingsView === 'worldBookMainChatPreview') {
+      appTitle = '预览上下文';
+    } else if (settingsView === 'worldBookTriggeredPreview') {
+      appTitle = '已触发预览';
+    } else if (settingsView === 'worldBookInfoBindings') {
+      appTitle = '信息块';
+    } else if (settingsView === 'worldBookInfoSourcePicker') {
+      appTitle = '选择信息来源';
+    } else if (settingsView === 'worldBookPicker') {
+      appTitle = '选择世界书';
     } else if (settingsView === 'aiPromptAddType') {
       appTitle = '选择块类型';
     } else if (settingsView === 'aiPromptMessageBlockEditor') {
@@ -1314,16 +1398,16 @@ function renderAppWindow(appKey) {
     } else if (recordsView === 'musicPlayer') {
       appTitle = '音乐播放器';
     }
-  } else if (appKey === 'radio') {
-    if (radioView === 'settings') {
-      appTitle = '广播设置';
-    } else if (radioView === 'apiBinding') {
+  } else if (appKey === 'news') {
+    if (newsView === 'settings') {
+      appTitle = '新闻设置';
+    } else if (newsView === 'apiBinding') {
       appTitle = 'API';
-    } else if (radioView === 'preset') {
-      appTitle = '广播预设';
-    } else if (radioView === 'autoGenerate') {
+    } else if (newsView === 'preset') {
+      appTitle = '新闻预设';
+    } else if (newsView === 'autoGenerate') {
       appTitle = '自动生成';
-    } else if (radioView === 'detail') {
+    } else if (newsView === 'detail') {
       appTitle = '新闻正文';
     }
   } else if (appKey === 'data') {
@@ -1361,7 +1445,7 @@ function renderAppWindow(appKey) {
   if (appKey === 'settings') {
     const appWindowBody = document.getElementById('app-window-body');
     appWindowBody.innerHTML = renderSettingsContent();
-    appWindowBody.classList.toggle('is-scrollable', !['screensaverList', 'aiModelList', 'aiConfigList', 'aiPromptList', 'aiPromptOverviewList', 'aiPromptAddType', 'aiPromptContextBlockEditor', 'aiPromptInfoSourcePicker', 'aiPromptWorldBookPicker', 'aiPromptBlockPreview'].includes(settingsView));
+    appWindowBody.classList.toggle('is-scrollable', !['screensaverList', 'aiModelList', 'aiConfigList', 'aiPromptList', 'aiPromptOverviewList', 'aiPromptAddType', 'aiPromptContextBlockEditor', 'aiPromptInfoSourcePicker', 'aiPromptWorldBookPicker', 'worldBookPicker', 'worldBookInfoSourcePicker', 'aiPromptBlockPreview'].includes(settingsView));
 
     if (settingsView === 'aiPromptList') {
       setAppSoftkeys('新建', '进入', '返回');
@@ -1403,6 +1487,30 @@ function renderAppWindow(appKey) {
       });
     } else if (settingsView === 'aiPromptWorldBookPicker') {
       setAppSoftkeys('查看', '选择', '返回');
+      requestAnimationFrame(() => {
+        document.querySelector('.ai-preset-picker-item.is-selected')?.scrollIntoView({ block: 'nearest' });
+      });
+    } else if (settingsView === 'worldBookPicker') {
+      setAppSoftkeys('', '添加', '返回');
+      requestAnimationFrame(() => {
+        document.querySelector('.ai-preset-picker-item.is-selected')?.scrollIntoView({ block: 'nearest' });
+      });
+    } else if (settingsView === 'worldBookEntry') {
+      setAppSoftkeys('', '进入', '返回');
+    } else if (settingsView === 'worldBookMainChat') {
+      setAppSoftkeys('', '保存', '返回');
+      focusAiMainChatInput();
+    } else if (settingsView === 'worldBookMainChatRules') {
+      setAppSoftkeys('新增', '保存', '返回');
+      focusAiMainChatInput();
+    } else if (settingsView === 'worldBookMainChatPreview') {
+      setAppSoftkeys('刷新', '', '返回');
+    } else if (settingsView === 'worldBookTriggeredPreview') {
+      setAppSoftkeys('刷新', '', '返回');
+    } else if (settingsView === 'worldBookInfoBindings') {
+      setAppSoftkeys('添加', '', '返回');
+    } else if (settingsView === 'worldBookInfoSourcePicker') {
+      setAppSoftkeys('', '添加', '返回');
       requestAnimationFrame(() => {
         document.querySelector('.ai-preset-picker-item.is-selected')?.scrollIntoView({ block: 'nearest' });
       });
@@ -1459,6 +1567,8 @@ function renderAppWindow(appKey) {
     } else if (settingsView === 'screensaverEditor') {
       setAppSoftkeys('返回', '保存', '关闭');
       focusScreenSaverInput();
+    } else if (settingsView === 'worldBook') {
+      setAppSoftkeys('添加', '', '返回');
     } else {
       setAppSoftkeys('返回', '确定', '关闭');
       updateSettingsSelection();
@@ -1758,84 +1868,84 @@ function renderAppWindow(appKey) {
     return;
   }
 
-  if (appKey === 'radio') {
+  if (appKey === 'news') {
     document.getElementById('app-window-body').classList.remove('is-scrollable');
-    document.getElementById('app-window-body').innerHTML = renderRadioContent();
-    if (radioView === 'settings') {
-      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
-    } else if (radioView === 'apiBinding') {
-      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
-    } else if (radioView === 'preset') {
-      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
-    } else if (radioView === 'autoGenerate') {
-      setAppSoftkeys(radioRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
-    } else if (radioView === 'detail') {
+    document.getElementById('app-window-body').innerHTML = renderNewsContent();
+    if (newsView === 'settings') {
+      setAppSoftkeys(newsRequestStatus === 'loading' ? '等待' : '生成', '进入', '返回');
+    } else if (newsView === 'apiBinding') {
+      setAppSoftkeys(newsRequestStatus === 'loading' ? '等待' : '生成', '绑定', '返回');
+    } else if (newsView === 'preset') {
+      setAppSoftkeys(newsRequestStatus === 'loading' ? '等待' : '生成', '选择', '返回');
+    } else if (newsView === 'autoGenerate') {
+      setAppSoftkeys(newsRequestStatus === 'loading' ? '等待' : '生成', '切换', '返回');
+    } else if (newsView === 'detail') {
       setAppSoftkeys('', '', '返回');
     } else {
       setAppSoftkeys('', '', '');
     }
     requestAnimationFrame(() => {
-      if (radioView === 'settings') {
-        const settingsList = document.getElementById('radio-settings-list');
-        const selectedItem = settingsList?.querySelector('.radio-settings-item.is-selected');
+      if (newsView === 'settings') {
+        const settingsList = document.getElementById('news-settings-list');
+        const selectedItem = settingsList?.querySelector('.news-settings-item.is-selected');
         if (!settingsList) return;
-        settingsList.scrollTop = radioSettingsListScrollTop;
+        settingsList.scrollTop = newsSettingsListScrollTop;
         selectedItem?.scrollIntoView({ block: 'nearest' });
         settingsList.addEventListener('scroll', () => {
-          radioSettingsListScrollTop = settingsList.scrollTop;
+          newsSettingsListScrollTop = settingsList.scrollTop;
         }, { passive: true });
         return;
       }
-      if (radioView === 'apiBinding') {
-        const profileList = document.getElementById('radio-api-profile-list');
-        const selectedItem = profileList?.querySelector('.radio-api-profile-item.is-selected');
+      if (newsView === 'apiBinding') {
+        const profileList = document.getElementById('news-api-profile-list');
+        const selectedItem = profileList?.querySelector('.news-api-profile-item.is-selected');
         if (!profileList) return;
-        profileList.scrollTop = radioApiProfileListScrollTop;
+        profileList.scrollTop = newsApiProfileListScrollTop;
         selectedItem?.scrollIntoView({ block: 'nearest' });
         profileList.addEventListener('scroll', () => {
-          radioApiProfileListScrollTop = profileList.scrollTop;
+          newsApiProfileListScrollTop = profileList.scrollTop;
         }, { passive: true });
         return;
       }
-      if (radioView === 'preset') {
-        const presetList = document.getElementById('radio-preset-list');
-        const selectedItem = presetList?.querySelector('.radio-preset-item.is-selected');
+      if (newsView === 'preset') {
+        const presetList = document.getElementById('news-preset-list');
+        const selectedItem = presetList?.querySelector('.news-preset-item.is-selected');
         if (!presetList) return;
-        presetList.scrollTop = radioPresetListScrollTop;
+        presetList.scrollTop = newsPresetListScrollTop;
         selectedItem?.scrollIntoView({ block: 'nearest' });
         presetList.addEventListener('scroll', () => {
-          radioPresetListScrollTop = presetList.scrollTop;
+          newsPresetListScrollTop = presetList.scrollTop;
         }, { passive: true });
         return;
       }
-      if (radioView === 'autoGenerate') {
-        const autoGenerateList = document.getElementById('radio-auto-generate-list');
-        const selectedItem = autoGenerateList?.querySelector('.radio-auto-generate-item.is-selected');
+      if (newsView === 'autoGenerate') {
+        const autoGenerateList = document.getElementById('news-auto-generate-list');
+        const selectedItem = autoGenerateList?.querySelector('.news-auto-generate-item.is-selected');
         if (!autoGenerateList) return;
-        autoGenerateList.scrollTop = radioAutoGenerateListScrollTop;
+        autoGenerateList.scrollTop = newsAutoGenerateListScrollTop;
         selectedItem?.scrollIntoView({ block: 'nearest' });
         autoGenerateList.addEventListener('scroll', () => {
-          radioAutoGenerateListScrollTop = autoGenerateList.scrollTop;
+          newsAutoGenerateListScrollTop = autoGenerateList.scrollTop;
         }, { passive: true });
         return;
       }
-      if (radioView === 'detail') {
-        const detailBody = document.getElementById('radio-news-detail-body');
+      if (newsView === 'detail') {
+        const detailBody = document.getElementById('news-detail-body');
         if (detailBody) {
-          detailBody.scrollTop = radioDetailScrollTop;
+          detailBody.scrollTop = newsDetailScrollTop;
           detailBody.addEventListener('scroll', () => {
-            radioDetailScrollTop = detailBody.scrollTop;
+            newsDetailScrollTop = detailBody.scrollTop;
           }, { passive: true });
         }
         return;
       }
-      const radioList = document.getElementById('radio-news-list');
-      const selectedItem = radioList?.querySelector('.radio-news-item.is-selected');
-      if (!radioList) return;
-      radioList.scrollTop = radioListScrollTop;
+      const newsList = document.getElementById('news-list');
+      const selectedItem = newsList?.querySelector('.news-item.is-selected');
+      if (!newsList) return;
+      newsList.scrollTop = newsListScrollTop;
       selectedItem?.scrollIntoView({ block: 'nearest' });
-      radioList.addEventListener('scroll', () => {
-        radioListScrollTop = radioList.scrollTop;
+      newsList.addEventListener('scroll', () => {
+        newsListScrollTop = newsList.scrollTop;
       }, { passive: true });
     });
     return;
@@ -2155,7 +2265,7 @@ function renderAppWindow(appKey) {
 }
 
 function openApp(appKey) {
-  if (isClosed || isAlerting) return;
+  if (isClosed) return;
   if (appKey === 'settings') {
     selectedSettingsIndex = 0;
     pendingThemeIndex = selectedThemeIndex;
@@ -2285,22 +2395,22 @@ function openApp(appKey) {
       resetCharsViewState();
     }
   }
-  if (appKey === 'radio') {
-    radioView = 'list';
-    radioListScrollTop = 0;
-    radioDetailScrollTop = 0;
-    selectedRadioNewsIndex = Math.min(selectedRadioNewsIndex, Math.max(radioNewsEntries.length - 1, 0));
-    selectedRadioSettingsIndex = 0;
-    radioSettingsListScrollTop = 0;
-    selectedRadioApiProfileIndex = -1;
-    radioApiProfileListScrollTop = 0;
-    currentRadioPresetId = normalizeAiSettings(aiSettings).selectedRadioPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
-    selectedRadioPresetIndex = -1;
-    radioPresetListScrollTop = 0;
-    selectedRadioAutoGenerateIndex = 0;
-    radioAutoGenerateListScrollTop = 0;
-    radioRequestStatus = 'idle';
-    radioGenerationStatusMessage = '';
+  if (appKey === 'news') {
+    newsView = 'list';
+    newsListScrollTop = 0;
+    newsDetailScrollTop = 0;
+    selectedNewsIndex = Math.min(selectedNewsIndex, Math.max(newsEntries.length - 1, 0));
+    selectedNewsSettingsIndex = 0;
+    newsSettingsListScrollTop = 0;
+    selectedNewsApiProfileIndex = -1;
+    newsApiProfileListScrollTop = 0;
+    currentNewsPresetId = normalizeAiSettings(aiSettings).selectedNewsPresetId || normalizeAiSettings(aiSettings).selectedPresetId || '';
+    selectedNewsPresetIndex = -1;
+    newsPresetListScrollTop = 0;
+    selectedNewsAutoGenerateIndex = 0;
+    newsAutoGenerateListScrollTop = 0;
+    newsRequestStatus = 'idle';
+    newsGenerationStatusMessage = '';
   }
   if (appKey === 'items') {
     itemsView = 'list';
@@ -2384,9 +2494,9 @@ function closeApp() {
   weatherApiProfileListScrollTop = 0;
   selectedWeatherAutoGenerateIndex = 0;
   weatherAutoGenerateListScrollTop = 0;
-  radioView = 'list';
-  radioListScrollTop = 0;
-  radioDetailScrollTop = 0;
+  newsView = 'list';
+  newsListScrollTop = 0;
+  newsDetailScrollTop = 0;
   selectedItemIndex = itemEntries.length ? 0 : -1;
   itemsListScrollTop = 0;
   itemsDetailScrollTop = 0;
@@ -2461,21 +2571,6 @@ function closePhone(event) {
   setPhoneClosed(true);
 }
 
-function toggleAlert() {
-  if (isClosed) return;
-
-  const outerDisplay = document.getElementById('outer-time');
-  isAlerting = !isAlerting;
-
-  if (isAlerting) {
-    closeApp();
-    outerDisplay.classList.add('alert');
-    outerDisplay.textContent = 'WARNING';
-  } else {
-    outerDisplay.classList.remove('alert');
-    updateTime();
-  }
-}
 
 function getDpadDirection(event, pad) {
   const rect = pad.getBoundingClientRect();
@@ -2516,8 +2611,8 @@ function pressDpad(event) {
       moveMusicSelection(direction);
     } else if (currentAppKey === 'records') {
       moveRecordsSelection(direction);
-    } else if (currentAppKey === 'radio') {
-      moveRadioSelection(direction);
+    } else if (currentAppKey === 'news') {
+      moveNewsSelection(direction);
     } else if (currentAppKey === 'map') {
       moveMapSelection(direction);
     } else if (currentAppKey === 'weather') {
@@ -2557,7 +2652,7 @@ function handleSideButtonPress(event) {
   button.classList.add('is-pressed');
   setTimeout(() => button.classList.remove('is-pressed'), 120);
 
-  if (isClosed || isAlerting) return;
+  if (isClosed) return;
 
   const action = button.dataset.action;
 
@@ -2659,16 +2754,16 @@ function handleSideButtonPress(event) {
       }
       return;
     }
-    if (currentAppKey === 'radio' && isAppWindowOpen()) {
-      if (radioView === 'list') {
-        openRadioSettings();
+    if (currentAppKey === 'news' && isAppWindowOpen()) {
+      if (newsView === 'list') {
+        openNewsSettings();
         return;
       }
-      if (radioView === 'detail') {
+      if (newsView === 'detail') {
         return;
       }
-      if (typeof triggerRadioGenerationFromSoftkey === 'function') {
-        triggerRadioGenerationFromSoftkey();
+      if (typeof triggerNewsGenerationFromSoftkey === 'function') {
+        triggerNewsGenerationFromSoftkey();
       }
       return;
     }
@@ -2732,6 +2827,27 @@ function handleSideButtonPress(event) {
     }
     if (currentAppKey === 'settings' && settingsView === 'aiPromptWorldBookPicker') {
       openAiPresetWorldBookPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBook') {
+      openWorldBookPicker();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatRules') {
+      pendingAiMainChatXmlRules.push({ tag: '', mode: 'recent', n: '' });
+      renderAppWindow('settings');
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatPreview') {
+      refreshWorldBookMainChatPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookTriggeredPreview') {
+      refreshWorldBookTriggeredPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookInfoBindings') {
+      openWorldBookInfoSourcePicker();
       return;
     }
     if (currentAppKey === 'settings' && settingsView === 'aiPromptBlockPreview') {
@@ -2841,6 +2957,42 @@ function handleSideButtonPress(event) {
       closeAiConfig();
       return;
     }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookPicker') {
+      closeWorldBookPicker();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookEntry') {
+      closeWorldBookEntry();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChat') {
+      closeWorldBookMainChatSettings();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatRules') {
+      closeWorldBookMainChatRules();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatPreview') {
+      closeWorldBookMainChatPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookTriggeredPreview') {
+      closeWorldBookTriggeredPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookInfoBindings') {
+      closeWorldBookInfoBindings();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookInfoSourcePicker') {
+      closeWorldBookInfoSourcePicker();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBook') {
+      closeWorldBookSettings();
+      return;
+    }
     if (currentAppKey === 'contact') {
       if (contactView === 'editor') {
         closeAiContactEditor();
@@ -2933,25 +3085,25 @@ function handleSideButtonPress(event) {
       closeApp();
       return;
     }
-    if (currentAppKey === 'radio') {
-      if (radioView === 'apiBinding') {
-        closeRadioApiBindingList();
+    if (currentAppKey === 'news') {
+      if (newsView === 'apiBinding') {
+        closeNewsApiBindingList();
         return;
       }
-      if (radioView === 'preset') {
-        closeRadioPresetList();
+      if (newsView === 'preset') {
+        closeNewsPresetList();
         return;
       }
-      if (radioView === 'autoGenerate') {
-        closeRadioAutoGenerateList();
+      if (newsView === 'autoGenerate') {
+        closeNewsAutoGenerateList();
         return;
       }
-      if (radioView === 'settings') {
-        closeRadioSettings();
+      if (newsView === 'settings') {
+        closeNewsSettings();
         return;
       }
-      if (radioView === 'detail') {
-        closeRadioNewsDetail();
+      if (newsView === 'detail') {
+        closeNewsDetail();
         return;
       }
       closeApp();
@@ -3050,8 +3202,8 @@ function handleSideButtonPress(event) {
         return;
       }
     }
-    if (currentAppKey === 'radio' && radioView === 'detail') {
-      closeRadioNewsDetail();
+    if (currentAppKey === 'news' && newsView === 'detail') {
+      closeNewsDetail();
       return;
     }
     if (isAppWindowOpen()) {
@@ -3094,7 +3246,7 @@ document.querySelectorAll('.keypad .button').forEach((button) => {
       return;
     }
 
-    if (!/^[1-9]$/.test(shortcutKey)) return;
+    if (!['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0'].includes(shortcutKey)) return;
     openMenuShortcut(shortcutKey);
   });
 });
@@ -3347,10 +3499,22 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
+  const worldBookInfoSourceItem = event.target.closest('[data-worldbook-info-source-index]');
+  if (worldBookInfoSourceItem && currentAppKey === 'settings' && settingsView === 'worldBookInfoSourcePicker') {
+    selectedAiPresetInfoSourceIndex = Number(worldBookInfoSourceItem.dataset.worldbookInfoSourceIndex);
+    addSelectedWorldBookInfoSourceBinding();
+    event.stopPropagation();
+    return;
+  }
+
   const aiPresetWorldBookItem = event.target.closest('[data-ai-preset-worldbook-index]');
-  if (aiPresetWorldBookItem && ['settings', 'data'].includes(currentAppKey) && settingsView === 'aiPromptWorldBookPicker') {
+  if (aiPresetWorldBookItem && ['settings', 'data'].includes(currentAppKey) && ['aiPromptWorldBookPicker', 'worldBookPicker'].includes(settingsView)) {
     selectedAiPresetWorldBookIndex = Number(aiPresetWorldBookItem.dataset.aiPresetWorldbookIndex);
-    confirmAiPresetWorldBookSelection();
+    if (settingsView === 'worldBookPicker') {
+      addSelectedWorldBookEntry();
+    } else {
+      confirmAiPresetWorldBookSelection();
+    }
     event.stopPropagation();
     return;
   }
@@ -3519,34 +3683,34 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
-  const radioSettingsItem = event.target.closest('[data-radio-settings-index]');
-  if (radioSettingsItem && currentAppKey === 'radio' && radioView === 'settings') {
-    selectedRadioSettingsIndex = Number(radioSettingsItem.dataset.radioSettingsIndex);
-    openRadioSettingsSelection();
+  const newsSettingsItem = event.target.closest('[data-news-settings-index]');
+  if (newsSettingsItem && currentAppKey === 'news' && newsView === 'settings') {
+    selectedNewsSettingsIndex = Number(newsSettingsItem.dataset.newsSettingsIndex);
+    openNewsSettingsSelection();
     event.stopPropagation();
     return;
   }
 
-  const radioApiProfileItem = event.target.closest('[data-radio-api-profile-index]');
-  if (radioApiProfileItem && currentAppKey === 'radio' && radioView === 'apiBinding') {
-    selectedRadioApiProfileIndex = Number(radioApiProfileItem.dataset.radioApiProfileIndex);
-    bindRadioApiProfileSelection();
+  const newsApiProfileItem = event.target.closest('[data-news-api-profile-index]');
+  if (newsApiProfileItem && currentAppKey === 'news' && newsView === 'apiBinding') {
+    selectedNewsApiProfileIndex = Number(newsApiProfileItem.dataset.newsApiProfileIndex);
+    bindNewsApiProfileSelection();
     event.stopPropagation();
     return;
   }
 
-  const radioPresetItem = event.target.closest('[data-radio-preset-index]');
-  if (radioPresetItem && currentAppKey === 'radio' && radioView === 'preset') {
-    selectedRadioPresetIndex = Number(radioPresetItem.dataset.radioPresetIndex);
-    bindRadioPresetSelection();
+  const newsPresetItem = event.target.closest('[data-news-preset-index]');
+  if (newsPresetItem && currentAppKey === 'news' && newsView === 'preset') {
+    selectedNewsPresetIndex = Number(newsPresetItem.dataset.newsPresetIndex);
+    bindNewsPresetSelection();
     event.stopPropagation();
     return;
   }
 
-  const radioAutoGenerateItem = event.target.closest('[data-radio-auto-generate-index]');
-  if (radioAutoGenerateItem && currentAppKey === 'radio' && radioView === 'autoGenerate') {
-    selectedRadioAutoGenerateIndex = Number(radioAutoGenerateItem.dataset.radioAutoGenerateIndex);
-    confirmRadioAutoGenerateSelection();
+  const newsAutoGenerateItem = event.target.closest('[data-news-auto-generate-index]');
+  if (newsAutoGenerateItem && currentAppKey === 'news' && newsView === 'autoGenerate') {
+    selectedNewsAutoGenerateIndex = Number(newsAutoGenerateItem.dataset.newsAutoGenerateIndex);
+    confirmNewsAutoGenerateSelection();
     event.stopPropagation();
     return;
   }
@@ -3597,10 +3761,10 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
-  const radioNewsItem = event.target.closest('.radio-news-item');
-  if (radioNewsItem && currentAppKey === 'radio') {
-    selectedRadioNewsIndex = Number(radioNewsItem.dataset.radioNewsIndex);
-    openRadioNewsDetail(selectedRadioNewsIndex);
+  const newsItem = event.target.closest('.news-item');
+  if (newsItem && currentAppKey === 'news') {
+    selectedNewsIndex = Number(newsItem.dataset.newsIndex);
+    openNewsDetail(selectedNewsIndex);
     event.stopPropagation();
     return;
   }
@@ -3651,22 +3815,30 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
-  const aiMainChatRulesOpenButton = event.target.closest('#ai-mainchat-rules-open');
-  if (aiMainChatRulesOpenButton && currentAppKey === 'settings' && settingsView === 'aiMainChat') {
-    openAiMainChatRules();
+  const aiMainChatRulesOpenButton = event.target.closest('#ai-mainchat-rules-open, #worldbook-mainchat-rules-open');
+  if (aiMainChatRulesOpenButton && currentAppKey === 'settings' && ['aiMainChat', 'worldBookMainChat'].includes(settingsView)) {
+    if (settingsView === 'worldBookMainChat') {
+      openWorldBookMainChatRules();
+    } else {
+      openAiMainChatRules();
+    }
     event.stopPropagation();
     return;
   }
 
-  const aiMainChatPreviewOpenButton = event.target.closest('#ai-mainchat-preview-open');
-  if (aiMainChatPreviewOpenButton && currentAppKey === 'settings' && settingsView === 'aiMainChat') {
-    openAiMainChatPreview();
+  const aiMainChatPreviewOpenButton = event.target.closest('#ai-mainchat-preview-open, #worldbook-mainchat-preview-open');
+  if (aiMainChatPreviewOpenButton && currentAppKey === 'settings' && ['aiMainChat', 'worldBookMainChat'].includes(settingsView)) {
+    if (settingsView === 'worldBookMainChat') {
+      openWorldBookMainChatPreview();
+    } else {
+      openAiMainChatPreview();
+    }
     event.stopPropagation();
     return;
   }
 
   const aiMainChatRuleDeleteButton = event.target.closest('[data-ai-mainchat-rule-delete-index]');
-  if (aiMainChatRuleDeleteButton && currentAppKey === 'settings' && settingsView === 'aiMainChatRules') {
+  if (aiMainChatRuleDeleteButton && currentAppKey === 'settings' && ['aiMainChatRules', 'worldBookMainChatRules'].includes(settingsView)) {
     pendingAiMainChatXmlRules.splice(Number(aiMainChatRuleDeleteButton.dataset.aiMainchatRuleDeleteIndex), 1);
     renderAppWindow('settings');
     event.stopPropagation();
@@ -3674,7 +3846,7 @@ document.getElementById('app-window').addEventListener('click', (event) => {
   }
 
   const aiMainChatRuleModeToggleButton = event.target.closest('[data-ai-mainchat-rule-mode-toggle-index]');
-  if (aiMainChatRuleModeToggleButton && currentAppKey === 'settings' && settingsView === 'aiMainChatRules') {
+  if (aiMainChatRuleModeToggleButton && currentAppKey === 'settings' && ['aiMainChatRules', 'worldBookMainChatRules'].includes(settingsView)) {
     const ruleIndex = Number(aiMainChatRuleModeToggleButton.dataset.aiMainchatRuleModeToggleIndex);
     if (pendingAiMainChatXmlRules[ruleIndex]) {
       pendingAiMainChatXmlRules[ruleIndex].mode = pendingAiMainChatXmlRules[ruleIndex].mode === 'exclude' ? 'recent' : 'exclude';
@@ -3696,6 +3868,49 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     return;
   }
 
+  const worldBookAddButton = event.target.closest('#worldbook-settings-add');
+  if (worldBookAddButton && currentAppKey === 'settings' && settingsView === 'worldBook') {
+    openWorldBookPicker();
+    event.stopPropagation();
+    return;
+  }
+
+  const worldBookDeleteButton = event.target.closest('[data-worldbook-entry-delete-index]');
+  if (worldBookDeleteButton && currentAppKey === 'settings' && settingsView === 'worldBook') {
+    deleteWorldBookEntry(Number(worldBookDeleteButton.dataset.worldbookEntryDeleteIndex));
+    event.stopPropagation();
+    return;
+  }
+
+  const worldBookEntryItem = event.target.closest('[data-worldbook-entry-index]');
+  if (worldBookEntryItem && currentAppKey === 'settings' && settingsView === 'worldBook') {
+    openWorldBookEntry(Number(worldBookEntryItem.dataset.worldbookEntryIndex));
+    event.stopPropagation();
+    return;
+  }
+
+  const worldBookEntrySettingRow = event.target.closest('[data-worldbook-entry-setting]');
+  if (worldBookEntrySettingRow && currentAppKey === 'settings' && settingsView === 'worldBookEntry') {
+    const settingKey = String(worldBookEntrySettingRow.dataset.worldbookEntrySetting || '').trim();
+    selectedWorldBookEntrySettingsIndex = settingKey === 'mainChat' ? 0 : settingKey === 'infoBindings' ? 1 : 2;
+    if (selectedWorldBookEntrySettingsIndex === 0) {
+      openWorldBookMainChatSettings();
+    } else if (selectedWorldBookEntrySettingsIndex === 1) {
+      openWorldBookInfoBindings();
+    } else {
+      openWorldBookTriggeredPreview();
+    }
+    event.stopPropagation();
+    return;
+  }
+
+  const worldBookInfoBindingDeleteButton = event.target.closest('[data-worldbook-info-binding-delete-index]');
+  if (worldBookInfoBindingDeleteButton && currentAppKey === 'settings' && settingsView === 'worldBookInfoBindings') {
+    deleteWorldBookInfoSourceBinding(Number(worldBookInfoBindingDeleteButton.dataset.worldbookInfoBindingDeleteIndex));
+    event.stopPropagation();
+    return;
+  }
+
   const settingRow = event.target.closest('.setting-row');
   if (settingRow && currentAppKey === 'settings' && settingsView === 'list') {
     selectedSettingsIndex = settingsRowOrder.indexOf(settingRow.dataset.setting);
@@ -3708,6 +3923,9 @@ document.getElementById('app-window').addEventListener('click', (event) => {
     }
     if (settingRow.dataset.setting === 'aiPromptOverview') {
       openAiPromptOverviewList();
+    }
+    if (settingRow.dataset.setting === 'worldBook') {
+      openWorldBookSettings();
     }
     if (settingRow.dataset.setting === 'aiMainChat') {
       openAiMainChatConfig();
@@ -4059,6 +4277,42 @@ document.addEventListener('keydown', (event) => {
       closeAiConfig();
       return;
     }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookPicker') {
+      closeWorldBookPicker();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookEntry') {
+      closeWorldBookEntry();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChat') {
+      closeWorldBookMainChatSettings();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatRules') {
+      closeWorldBookMainChatRules();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookMainChatPreview') {
+      closeWorldBookMainChatPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookTriggeredPreview') {
+      closeWorldBookTriggeredPreview();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookInfoBindings') {
+      closeWorldBookInfoBindings();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBookInfoSourcePicker') {
+      closeWorldBookInfoSourcePicker();
+      return;
+    }
+    if (currentAppKey === 'settings' && settingsView === 'worldBook') {
+      closeWorldBookSettings();
+      return;
+    }
     if (currentAppKey === 'contact') {
       if (contactView === 'editor') {
         closeAiContactEditor();
@@ -4159,25 +4413,25 @@ document.addEventListener('keydown', (event) => {
         return;
       }
     }
-    if (currentAppKey === 'radio') {
-      if (radioView === 'apiBinding') {
-        closeRadioApiBindingList();
+    if (currentAppKey === 'news') {
+      if (newsView === 'apiBinding') {
+        closeNewsApiBindingList();
         return;
       }
-      if (radioView === 'preset') {
-        closeRadioPresetList();
+      if (newsView === 'preset') {
+        closeNewsPresetList();
         return;
       }
-      if (radioView === 'autoGenerate') {
-        closeRadioAutoGenerateList();
+      if (newsView === 'autoGenerate') {
+        closeNewsAutoGenerateList();
         return;
       }
-      if (radioView === 'settings') {
-        closeRadioSettings();
+      if (newsView === 'settings') {
+        closeNewsSettings();
         return;
       }
-      if (radioView === 'detail') {
-        closeRadioNewsDetail();
+      if (newsView === 'detail') {
+        closeNewsDetail();
         return;
       }
     }
@@ -4191,6 +4445,12 @@ const screenSaverImageEl = document.getElementById('screen-saver-image');
 if (screenSaverImageEl) {
   screenSaverImageEl.addEventListener('load', handleScreenSaverImageLoad);
   screenSaverImageEl.addEventListener('error', handleScreenSaverImageError);
+}
+
+const screenSaverVideoEl = document.getElementById('screen-saver-video');
+if (screenSaverVideoEl) {
+  screenSaverVideoEl.addEventListener('loadeddata', handleScreenSaverVideoLoad);
+  screenSaverVideoEl.addEventListener('error', handleScreenSaverVideoError);
 }
 
 currentTheme = getStoredTheme();
@@ -4220,8 +4480,10 @@ selectedAiContactIndex = aiContacts.length ? 0 : -1;
 applyTheme(currentTheme);
 applyFontSize(currentFontSizeKey);
 
-async function bootstrapAiPersistentData() {
-  bindBleachPhoneChatsVariableEvents();
+function bindAiPersistentEventHooks() {
+  if (typeof bindBleachPhoneChatsVariableEvents === 'function') {
+    bindBleachPhoneChatsVariableEvents();
+  }
   bindBleachPhoneChatGenerationEvents();
   if (typeof bindBleachPhoneDateTimeVariableEvents === 'function') {
     bindBleachPhoneDateTimeVariableEvents();
@@ -4241,11 +4503,11 @@ async function bootstrapAiPersistentData() {
   if (typeof bindCharsAutoGenerateEvents === 'function') {
     bindCharsAutoGenerateEvents();
   }
-  if (typeof bindBleachPhoneRadioVariableEvents === 'function') {
-    bindBleachPhoneRadioVariableEvents();
+  if (typeof bindBleachPhoneNewsVariableEvents === 'function') {
+    bindBleachPhoneNewsVariableEvents();
   }
-  if (typeof bindRadioAutoGenerateEvents === 'function') {
-    bindRadioAutoGenerateEvents();
+  if (typeof bindNewsAutoGenerateEvents === 'function') {
+    bindNewsAutoGenerateEvents();
   }
   if (typeof bindBleachPhoneWeatherVariableEvents === 'function') {
     bindBleachPhoneWeatherVariableEvents();
@@ -4253,6 +4515,20 @@ async function bootstrapAiPersistentData() {
   if (typeof bindWeatherAutoGenerateEvents === 'function') {
     bindWeatherAutoGenerateEvents();
   }
+}
+
+function bindAiPersistentEventHooksWhenReady() {
+  bindAiPersistentEventHooks();
+  const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
+  if (typeof ctx?.eventSource?.on !== 'function') {
+    return;
+  }
+  const appReadyEvent = ctx?.eventTypes?.APP_READY || 'app_ready';
+  ctx.eventSource.on(appReadyEvent, bindAiPersistentEventHooks);
+}
+
+async function bootstrapAiPersistentData() {
+  bindAiPersistentEventHooksWhenReady();
   try {
     const hydratedState = await hydrateAiPersistentData();
     aiSettings = hydratedState.aiSettings;
@@ -4270,7 +4546,7 @@ async function bootstrapAiPersistentData() {
     await loadBleachPhoneItemsVariableToRuntime({ render: false, clearOnMissing: false });
     await loadBleachPhoneCharsVariableToRuntime({ render: false, clearOnMissing: false });
     await loadBleachPhoneMapVariableToRuntime({ render: false, clearOnMissing: false });
-    await loadBleachPhoneRadioVariableToRuntime({ render: false, clearOnMissing: false });
+    await loadBleachPhoneNewsVariableToRuntime({ render: false, clearOnMissing: false });
     await loadBleachPhoneWeatherVariableToRuntime({ render: false, clearOnMissing: false });
     if (typeof syncWeatherByLatestAiText === 'function') {
       await syncWeatherByLatestAiText({ render: false, persist: false });
@@ -4282,7 +4558,7 @@ async function bootstrapAiPersistentData() {
     if (contactView === 'chat' && currentAiContactIndex < 0) {
       contactView = 'list';
     }
-    if (currentAppKey === 'settings' || currentAppKey === 'contact' || currentAppKey === 'sms' || currentAppKey === 'items' || currentAppKey === 'chars' || currentAppKey === 'map' || currentAppKey === 'radio' || currentAppKey === 'weather') {
+    if (currentAppKey === 'settings' || currentAppKey === 'contact' || currentAppKey === 'sms' || currentAppKey === 'items' || currentAppKey === 'chars' || currentAppKey === 'map' || currentAppKey === 'news' || currentAppKey === 'weather') {
       renderAppWindow(currentAppKey);
     }
   } catch (error) {
