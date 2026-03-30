@@ -189,15 +189,13 @@ function parseCharsAiResponse(rawText = '') {
   const taggedPayload = typeof extractTagContentWithTag === 'function'
     ? extractTagContentWithTag(sourceText, charsParserConfig.payloadTag)
     : '';
-  if (!taggedPayload) {
-    throw new Error(`未找到 <${charsParserConfig.payloadTag}> 标签`);
-  }
-
   const payloadText = taggedPayload
-    .replace(new RegExp(`^<${charsParserConfig.payloadTag}>|</${charsParserConfig.payloadTag}>$`, 'gi'), '')
-    .trim();
+    ? taggedPayload
+      .replace(new RegExp(`^<${charsParserConfig.payloadTag}>|</${charsParserConfig.payloadTag}>$`, 'gi'), '')
+      .trim()
+    : sourceText;
   if (!payloadText) {
-    throw new Error('chars_json 标签内容为空');
+    throw new Error('chars_json 不是有效 JSON：内容为空');
   }
 
   let parsedPayload;
@@ -208,7 +206,7 @@ function parseCharsAiResponse(rawText = '') {
   }
 
   if (!parsedPayload || typeof parsedPayload !== 'object' || Array.isArray(parsedPayload)) {
-    throw new Error('chars_json 顶层必须是对象');
+    throw new Error('chars_json 缺少顶层字段：characters（顶层需为对象）');
   }
 
   for (const key of charsParserConfig.requiredTopLevelKeys) {
@@ -218,14 +216,14 @@ function parseCharsAiResponse(rawText = '') {
   }
 
   if (!Array.isArray(parsedPayload.characters)) {
-    throw new Error('chars_json.characters 必须是数组');
+    throw new Error('chars_json 缺少顶层字段或字段格式错误：characters（需为数组）');
   }
 
   const characters = parsedPayload.characters
     .map((entry, index) => normalizeCharsEntry(entry, index))
     .filter(Boolean);
   if (!characters.length) {
-    throw new Error(`情报列表为空，且每个条目必须包含字段：${charsParserConfig.requiredCharacterKeys.join(', ')}`);
+    throw new Error(`情报列表为空；每个条目至少需要包含字段：${charsParserConfig.requiredCharacterKeys.join(', ')}`);
   }
 
   return {
@@ -292,17 +290,15 @@ function bindBleachPhoneCharsVariableEvents() {
   const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
   if (typeof ctx?.eventSource?.on !== 'function') return false;
 
-  const handleChatChanged = async () => {
+  const handleChatScopedRefresh = async () => {
     await loadBleachPhoneCharsVariableToRuntime({ clearOnMissing: true, render: false });
     if (currentAppKey === 'chars') {
       renderActiveCharsWindow();
     }
   };
 
-  const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
-  ctx.eventSource.on(chatChangedEvent, handleChatChanged);
-  if (ctx?.eventTypes?.CHAT_LOADED) {
-    ctx.eventSource.on(ctx.eventTypes.CHAT_LOADED, handleChatChanged);
+  if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[情报变量]' })) {
+    return false;
   }
   isBleachPhoneCharsVariableEventsBound = true;
   return true;

@@ -4488,6 +4488,9 @@ function bindAiPersistentEventHooks() {
   if (typeof bindBleachPhoneDateTimeVariableEvents === 'function') {
     bindBleachPhoneDateTimeVariableEvents();
   }
+  if (typeof bindBleachPhoneMapVariableEvents === 'function') {
+    bindBleachPhoneMapVariableEvents();
+  }
   if (typeof bindMapAutoGenerateEvents === 'function') {
     bindMapAutoGenerateEvents();
   }

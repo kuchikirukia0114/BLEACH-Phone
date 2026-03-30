@@ -56,6 +56,40 @@ function renderBleachPhoneSettingRowsView({
   `;
 }
 
+function bindBleachPhoneChatScopedRefreshEvents(ctx, onRefresh, { logPrefix = '[BLEACH-Phone]' } = {}) {
+  if (typeof onRefresh !== 'function' || typeof ctx?.eventSource?.on !== 'function') {
+    return false;
+  }
+
+  let isRefreshPending = false;
+  const scheduleRefresh = () => {
+    if (isRefreshPending) return;
+    isRefreshPending = true;
+    Promise.resolve()
+      .then(() => onRefresh())
+      .catch((error) => {
+        console.error(`${String(logPrefix || '[BLEACH-Phone]')} 聊天作用域刷新失败`, error);
+      })
+      .finally(() => {
+        isRefreshPending = false;
+      });
+  };
+
+  const eventNames = [
+    ctx?.eventTypes?.APP_READY || 'app_ready',
+    ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed',
+    ctx?.eventTypes?.CHAT_LOADED || 'chatLoaded',
+    ctx?.eventTypes?.CHAT_CREATED || 'chat_created',
+    ctx?.eventTypes?.GROUP_CHAT_CREATED || 'group_chat_created',
+    ctx?.eventTypes?.CHARACTER_FIRST_MESSAGE_SELECTED || 'character_first_message_selected'
+  ].filter(Boolean);
+
+  Array.from(new Set(eventNames)).forEach((eventName) => {
+    ctx.eventSource.on(eventName, scheduleRefresh);
+  });
+  return true;
+}
+
 function getBleachPhoneAutoGenerateTriggerLabel(trigger = 'assistant') {
   return String(trigger || '').trim() === 'user' ? '用户消息后' : 'AI消息后';
 }

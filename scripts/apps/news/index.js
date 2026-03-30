@@ -173,17 +173,15 @@ function bindBleachPhoneNewsVariableEvents() {
   const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
   if (typeof ctx?.eventSource?.on !== 'function') return false;
 
-  const handleChatChanged = async () => {
+  const handleChatScopedRefresh = async () => {
     await loadBleachPhoneNewsVariableToRuntime({ clearOnMissing: true, render: false });
     if (currentAppKey === 'news') {
       renderActiveNewsWindow();
     }
   };
 
-  const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
-  ctx.eventSource.on(chatChangedEvent, handleChatChanged);
-  if (ctx?.eventTypes?.CHAT_LOADED) {
-    ctx.eventSource.on(ctx.eventTypes.CHAT_LOADED, handleChatChanged);
+  if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[新闻变量]' })) {
+    return false;
   }
   isBleachPhoneNewsVariableEventsBound = true;
   return true;
@@ -397,15 +395,13 @@ function parseNewsAiResponse(rawText = '') {
   const taggedPayload = typeof extractTagContentWithTag === 'function'
     ? extractTagContentWithTag(sourceText, newsParserConfig.payloadTag)
     : '';
-  if (!taggedPayload) {
-    throw new Error(`未找到 <${newsParserConfig.payloadTag}> 标签`);
-  }
-
   const payloadText = taggedPayload
-    .replace(new RegExp(`^<${escapeRegExp(newsParserConfig.payloadTag)}>|</${escapeRegExp(newsParserConfig.payloadTag)}>$`, 'gi'), '')
-    .trim();
+    ? taggedPayload
+      .replace(new RegExp(`^<${escapeRegExp(newsParserConfig.payloadTag)}>|</${escapeRegExp(newsParserConfig.payloadTag)}>$`, 'gi'), '')
+      .trim()
+    : sourceText;
   if (!payloadText) {
-    throw new Error('news_json 标签内容为空');
+    throw new Error('news_json 不是有效 JSON：内容为空');
   }
 
   let parsedPayload;
@@ -416,7 +412,7 @@ function parseNewsAiResponse(rawText = '') {
   }
 
   if (!parsedPayload || typeof parsedPayload !== 'object' || Array.isArray(parsedPayload)) {
-    throw new Error('news_json 顶层必须是对象');
+    throw new Error('news_json 缺少顶层字段：news（顶层需为对象）');
   }
 
   for (const key of newsParserConfig.requiredTopLevelKeys) {
@@ -426,12 +422,12 @@ function parseNewsAiResponse(rawText = '') {
   }
 
   if (!Array.isArray(parsedPayload.news)) {
-    throw new Error('news_json.news 必须是数组');
+    throw new Error('news_json 缺少顶层字段或字段格式错误：news（需为数组）');
   }
 
   const news = parsedPayload.news.map((entry, index) => normalizeNewsEntry(entry, index)).filter(Boolean);
   if (!news.length) {
-    throw new Error(`新闻列表为空，且每个条目必须包含字段：${newsParserConfig.requiredNewsKeys.join(', ')}`);
+    throw new Error(`新闻列表为空；每个条目至少需要包含字段：${newsParserConfig.requiredNewsKeys.join(', ')}`);
   }
 
   return {

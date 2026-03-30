@@ -763,7 +763,7 @@ function bindBleachPhoneWeatherVariableEvents() {
   const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
   if (typeof ctx?.eventSource?.on !== 'function') return false;
 
-  const handleChatChanged = async () => {
+  const handleChatScopedRefresh = async () => {
     resetWeatherAutoGenerateHandledKeys();
     await loadBleachPhoneWeatherVariableToRuntime({ clearOnMissing: true, render: false });
     await syncWeatherByLatestAiText({ render: false, persist: false });
@@ -772,10 +772,8 @@ function bindBleachPhoneWeatherVariableEvents() {
     }
   };
 
-  const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
-  ctx.eventSource.on(chatChangedEvent, handleChatChanged);
-  if (ctx?.eventTypes?.CHAT_LOADED) {
-    ctx.eventSource.on(ctx.eventTypes.CHAT_LOADED, handleChatChanged);
+  if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[天气变量]' })) {
+    return false;
   }
   isBleachPhoneWeatherVariableEventsBound = true;
   return true;

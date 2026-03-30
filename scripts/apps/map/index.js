@@ -48,6 +48,7 @@ const mapDemoPointEntries = [
 ];
 
 let selectedMapPointId = '';
+let isBleachPhoneMapVariableEventsBound = false;
 let isMapAutoGenerateEventsBound = false;
 let mapStatusAutoClearTimer = null;
 let mapAutoGenerateLastHandledKeys = {
@@ -218,6 +219,25 @@ async function loadBleachPhoneMapVariableToRuntime({ render = true, clearOnMissi
   }
 }
 
+function bindBleachPhoneMapVariableEvents() {
+  if (isBleachPhoneMapVariableEventsBound) return true;
+  const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
+  if (typeof ctx?.eventSource?.on !== 'function') return false;
+
+  const handleChatScopedRefresh = async () => {
+    await loadBleachPhoneMapVariableToRuntime({ clearOnMissing: true, render: false });
+    if (currentAppKey === 'map') {
+      renderActiveMapWindow();
+    }
+  };
+
+  if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[地图变量]' })) {
+    return false;
+  }
+  isBleachPhoneMapVariableEventsBound = true;
+  return true;
+}
+
 function pickMapPlayerPosition(player = null) {
   if (!player || typeof player !== 'object') {
     return null;
@@ -295,15 +315,13 @@ function parseMapAiResponse(rawText = '') {
   const taggedPayload = typeof extractTagContentWithTag === 'function'
     ? extractTagContentWithTag(sourceText, mapParserConfig.payloadTag)
     : '';
-  if (!taggedPayload) {
-    throw new Error(`未找到 <${mapParserConfig.payloadTag}> 标签`);
-  }
-
   const payloadText = taggedPayload
-    .replace(new RegExp(`^<${mapParserConfig.payloadTag}>|</${mapParserConfig.payloadTag}>$`, 'gi'), '')
-    .trim();
+    ? taggedPayload
+      .replace(new RegExp(`^<${mapParserConfig.payloadTag}>|</${mapParserConfig.payloadTag}>$`, 'gi'), '')
+      .trim()
+    : sourceText;
   if (!payloadText) {
-    throw new Error('map_json 标签内容为空');
+    throw new Error('map_json 不是有效 JSON：内容为空');
   }
 
   let parsedPayload;
@@ -314,7 +332,7 @@ function parseMapAiResponse(rawText = '') {
   }
 
   if (!parsedPayload || typeof parsedPayload !== 'object' || Array.isArray(parsedPayload)) {
-    throw new Error('map_json 顶层必须是对象');
+    throw new Error('map_json 缺少顶层字段：points（顶层需为对象）');
   }
 
   for (const key of mapParserConfig.requiredTopLevelKeys) {
@@ -324,12 +342,12 @@ function parseMapAiResponse(rawText = '') {
   }
 
   if (!Array.isArray(parsedPayload.points)) {
-    throw new Error('map_json.points 必须是数组');
+    throw new Error('map_json 缺少顶层字段或字段格式错误：points（需为数组）');
   }
 
   const points = parsedPayload.points.map((point, index) => normalizeMapPoint(point, index)).filter(Boolean);
   if (!points.length) {
-    throw new Error(`地图点位为空，且每个点位必须包含字段：${mapParserConfig.requiredPointKeys.join(', ')}`);
+    throw new Error(`地图点位列表为空；每个点位至少需要包含字段：${mapParserConfig.requiredPointKeys.join(', ')}`);
   }
 
   return {
@@ -661,12 +679,8 @@ function bindMapAutoGenerateEvents() {
       console.error('[地图自动生成] 用户消息事件处理失败', error);
     });
   };
-  const handleChatChanged = async () => {
+  const handleChatChanged = () => {
     resetMapAutoGenerateHandledKeys();
-    await loadBleachPhoneMapVariableToRuntime({ clearOnMissing: true, render: false });
-    if (currentAppKey === 'map') {
-      renderActiveMapWindow();
-    }
   };
 
   ctx.eventSource.on(messageReceivedEvent, handleAssistantMessage);

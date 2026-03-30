@@ -158,17 +158,15 @@ function bindBleachPhoneItemsVariableEvents() {
   const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
   if (typeof ctx?.eventSource?.on !== 'function') return false;
 
-  const handleChatChanged = async () => {
+  const handleChatScopedRefresh = async () => {
     await loadBleachPhoneItemsVariableToRuntime({ clearOnMissing: true, render: false });
     if (currentAppKey === 'items') {
       renderActiveItemsWindow();
     }
   };
 
-  const chatChangedEvent = ctx?.eventTypes?.CHAT_CHANGED || 'chat_id_changed';
-  ctx.eventSource.on(chatChangedEvent, handleChatChanged);
-  if (ctx?.eventTypes?.CHAT_LOADED) {
-    ctx.eventSource.on(ctx.eventTypes.CHAT_LOADED, handleChatChanged);
+  if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[物品变量]' })) {
+    return false;
   }
   isBleachPhoneItemsVariableEventsBound = true;
   return true;
@@ -494,12 +492,8 @@ function bindItemsAutoGenerateEvents() {
       console.error('[物品自动生成] 用户消息事件处理失败', error);
     });
   };
-  const handleChatChanged = async () => {
+  const handleChatChanged = () => {
     resetItemsAutoGenerateHandledKeys();
-    await loadBleachPhoneItemsVariableToRuntime({ clearOnMissing: true, render: false });
-    if (currentAppKey === 'items') {
-      renderActiveItemsWindow();
-    }
   };
 
   ctx.eventSource.on(messageReceivedEvent, handleAssistantMessage);
@@ -542,15 +536,13 @@ function parseItemsAiResponse(rawText = '') {
   const taggedPayload = typeof extractTagContentWithTag === 'function'
     ? extractTagContentWithTag(sourceText, itemsParserConfig.payloadTag)
     : '';
-  if (!taggedPayload) {
-    throw new Error(`未找到 <${itemsParserConfig.payloadTag}> 标签`);
-  }
-
   const payloadText = taggedPayload
-    .replace(new RegExp(`^<${itemsParserConfig.payloadTag}>|</${itemsParserConfig.payloadTag}>$`, 'gi'), '')
-    .trim();
+    ? taggedPayload
+      .replace(new RegExp(`^<${itemsParserConfig.payloadTag}>|</${itemsParserConfig.payloadTag}>$`, 'gi'), '')
+      .trim()
+    : sourceText;
   if (!payloadText) {
-    throw new Error('items_json 标签内容为空');
+    throw new Error('items_json 不是有效 JSON：内容为空');
   }
 
   let parsedPayload;
@@ -561,7 +553,7 @@ function parseItemsAiResponse(rawText = '') {
   }
 
   if (!parsedPayload || typeof parsedPayload !== 'object' || Array.isArray(parsedPayload)) {
-    throw new Error('items_json 顶层必须是对象');
+    throw new Error('items_json 缺少顶层字段：items（顶层需为对象）');
   }
 
   for (const key of itemsParserConfig.requiredTopLevelKeys) {
@@ -571,12 +563,12 @@ function parseItemsAiResponse(rawText = '') {
   }
 
   if (!Array.isArray(parsedPayload.items)) {
-    throw new Error('items_json.items 必须是数组');
+    throw new Error('items_json 缺少顶层字段或字段格式错误：items（需为数组）');
   }
 
   const items = parsedPayload.items.map((entry, index) => normalizeItemEntry(entry, index)).filter(Boolean);
   if (!items.length) {
-    throw new Error(`物品列表为空，且每个条目必须包含字段：${itemsParserConfig.requiredItemKeys.join(', ')}`);
+    throw new Error(`物品列表为空；每个条目至少需要包含字段：${itemsParserConfig.requiredItemKeys.join(', ')}`);
   }
 
   return {
