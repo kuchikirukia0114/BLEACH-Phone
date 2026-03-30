@@ -41,7 +41,7 @@
     --accent-sub: #122b54;
     --signal-glow: #4da6ff;
     --time-shadow: 0 0 5px #3a8df5, 0 0 10px #215eb3;
-    --battery-grad: linear-gradient(90deg, #1b4d8c 0%, #4da6ff 100%);
+    --battery-grad: linear-gradient(90deg, #6db2ff 0%, #9b8bf5 100%);
     
     /* 菜单配色：群星、高亮 */
     --menu-color: #728fb5;
@@ -53,17 +53,17 @@
     /* 键盘与方向键：深空探测器仪表 */
     --button-bg: linear-gradient(145deg, #111624, #080a12);
     --button-border: #0a0d14;
-    --button-text: #48658c;
-    --button-sub: #2d415e;
+    --button-text: #6080aa;
+    --button-sub: #3d5678;
     --button-active-bg: #0c101a;
-    --button-active-text: #6db2ff;
-    --button-active-sub: #3d6a9e;
+    --button-active-text: #9b8bf5;
+    --button-active-sub: #7a6cc0;
     --button-shadow-color: rgba(69, 115, 204, 0.15);
-    --button-shadow-active: rgba(109, 178, 255, 0.4);
+    --button-shadow-active: rgba(140, 128, 232, 0.45);
     --dpad-bg: radial-gradient(circle, #1a2236 0%, #070a12 100%);
     --dpad-border: #232e47;
     --dpad-center: #1d437a;
-    --dpad-glow: #4da6ff;
+    --dpad-glow: #9b8bf5;
 
     /* 应用窗口：深空舱体内壁与极光全息屏 */
     --window-bg: linear-gradient(180deg, #0b101c 0%, #05070d 100%);

@@ -47,8 +47,15 @@
             <div class="scanline"></div>
             <div class="status-bar">
               <div class="signal-container">
-                <svg class="scythe" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg class="scythe scythe-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M14,2 L14,5 C18,5 21,8 21,12 C21,12.5 20.9,13 20.8,13.5 L22.7,14.5 C22.9,13.7 23,12.9 23,12 C23,7 19,3 14,2 Z M10,2 L10,22 L12,22 L12,2 L10,2 Z" />
+                </svg>
+                <svg class="scythe alien-icon" viewBox="0 0 17 17" xmlns="http://www.w3.org/2000/svg">
+                  <path class="alien-head" d="M9.014,0.143 C5.159,0.143 2.031,3.122 2.031,6.794 C2.031,10.469 7.209,16 9.014,16 C10.822,16 16,10.469 16,6.794 C16,3.122 12.873,0.143 9.014,0.143 Z"/>
+                  <ellipse class="alien-eye-open" cx="6.5" cy="9" rx="1.8" ry="1.2" transform="rotate(40 6.5 9)"/>
+                  <ellipse class="alien-eye-open" cx="11.5" cy="9" rx="1.8" ry="1.2" transform="rotate(-40 11.5 9)"/>
+                  <line class="alien-eye-blink" x1="4.7" y1="9" x2="8.3" y2="9" transform="rotate(40 6.5 9)"/>
+                  <line class="alien-eye-blink" x1="9.7" y1="9" x2="13.3" y2="9" transform="rotate(-40 11.5 9)"/>
                 </svg>
                 <div class="signal-bar bar-1"></div>
                 <div class="signal-bar bar-2"></div>
@@ -83,6 +90,15 @@
                 </div>
               </div>
               <!-- 九宫格菜单 -->
+              <svg class="menu-grad-defs" width="0" height="0" aria-hidden="true" style="position:absolute;pointer-events:none;">
+                <defs>
+                  <linearGradient id="menu-icon-grad" gradientUnits="userSpaceOnUse" x1="0" y1="12" x2="24" y2="12">
+                    <stop offset="0%" stop-color="#f0a0c0"/>
+                    <stop offset="50%" stop-color="#c08de8"/>
+                    <stop offset="100%" stop-color="#7b8bf5"/>
+                  </linearGradient>
+                </defs>
+              </svg>
               <div class="normal-ui grid-menu" style="padding: 10px;">
                 <div class="grid-item" data-app="weather" data-title="天气">
                   <div class="icon">

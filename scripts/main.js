@@ -4550,9 +4550,13 @@ async function bootstrapAiPersistentData() {
     await loadBleachPhoneCharsVariableToRuntime({ render: false, clearOnMissing: false });
     await loadBleachPhoneMapVariableToRuntime({ render: false, clearOnMissing: false });
     await loadBleachPhoneNewsVariableToRuntime({ render: false, clearOnMissing: false });
-    await loadBleachPhoneWeatherVariableToRuntime({ render: false, clearOnMissing: false });
-    if (typeof syncWeatherByLatestAiText === 'function') {
-      await syncWeatherByLatestAiText({ render: false, persist: false });
+    if (typeof refreshWeatherFromChatScope === 'function') {
+      await refreshWeatherFromChatScope({ render: false });
+    } else {
+      const weatherLoadedFromVariable = await loadBleachPhoneWeatherVariableToRuntime({ render: false, clearOnMissing: false });
+      if (!weatherLoadedFromVariable && typeof syncWeatherByLatestAiText === 'function') {
+        await syncWeatherByLatestAiText({ render: false, persist: false });
+      }
     }
     selectedAiContactIndex = aiContacts.length ? Math.min(Math.max(selectedAiContactIndex, 0), aiContacts.length - 1) : -1;
     currentAiContactIndex = currentAiContactIndex >= 0 && aiContacts.length

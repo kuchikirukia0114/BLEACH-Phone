@@ -737,7 +737,7 @@ async function loadBleachPhoneWeatherVariableToRuntime({ render = true, clearOnM
   const rawValue = await getBleachPhoneWeatherVariableValue();
   if (rawValue == null || String(rawValue).trim() === '') {
     if (clearOnMissing) {
- restoreDefaultWeatherData({ render });
+      restoreDefaultWeatherData({ render });
       setWeatherGenerationStatus('当前聊天暂无天气数据', 'idle', { autoClear: true });
       return true;
     }
@@ -758,18 +758,39 @@ async function loadBleachPhoneWeatherVariableToRuntime({ render = true, clearOnM
   }
 }
 
+async function refreshWeatherFromChatScope({ render = true } = {}) {
+  resetWeatherAutoGenerateHandledKeys();
+  const loadedFromVariable = await loadBleachPhoneWeatherVariableToRuntime({ render: false, clearOnMissing: false });
+  if (loadedFromVariable) {
+    if (render && currentAppKey === 'weather') {
+      renderActiveWeatherWindow();
+    }
+    return 'variable';
+  }
+
+  const syncedFromLatestAiText = await syncWeatherByLatestAiText({ render: false, persist: false });
+  if (syncedFromLatestAiText) {
+    if (render && currentAppKey === 'weather') {
+      renderActiveWeatherWindow();
+    }
+    return 'assistant_text';
+  }
+
+  restoreDefaultWeatherData({ render: false });
+  setWeatherGenerationStatus('当前聊天暂无天气数据', 'idle', { autoClear: true });
+  if (render && currentAppKey === 'weather') {
+    renderActiveWeatherWindow();
+  }
+  return '';
+}
+
 function bindBleachPhoneWeatherVariableEvents() {
   if (isBleachPhoneWeatherVariableEventsBound) return true;
   const ctx = typeof getSillyTavernContext === 'function' ? getSillyTavernContext() : null;
   if (typeof ctx?.eventSource?.on !== 'function') return false;
 
   const handleChatScopedRefresh = async () => {
-    resetWeatherAutoGenerateHandledKeys();
-    await loadBleachPhoneWeatherVariableToRuntime({ clearOnMissing: true, render: false });
-    await syncWeatherByLatestAiText({ render: false, persist: false });
-    if (currentAppKey === 'weather') {
-      renderActiveWeatherWindow();
-    }
+    await refreshWeatherFromChatScope({ render: true });
   };
 
   if (!bindBleachPhoneChatScopedRefreshEvents(ctx, handleChatScopedRefresh, { logPrefix: '[天气变量]' })) {
@@ -1175,7 +1196,6 @@ async function generateWeatherDataFromApi() {
     aiReplyText = await requestAiWeatherReply();
     const parsedResult = parseWeatherAiResponse(aiReplyText);
     loadWeatherData(parsedResult.entries, { render: false, timeMeta: parsedResult.timeMeta });
-    await syncWeatherByLatestAiText({ render: false, persist: false, expectedChatId });
     const variableSynced = await syncBleachPhoneWeatherVariableFromParsedResult(parsedResult, { expectedChatId });
     if (!variableSynced) {
       console.warn('[天气变量] weather_json 未写入酒馆变量', { variableName: BLEACH_PHONE_WEATHER_VARIABLE_KEY });
@@ -1266,12 +1286,8 @@ function bindWeatherAutoGenerateEvents() {
       console.error('[天气自动生成] 用户消息事件处理失败', error);
     });
   };
-  const handleChatChanged = async () => {
+  const handleChatChanged = () => {
     resetWeatherAutoGenerateHandledKeys();
-    await syncWeatherByLatestAiText({ render: false, persist: false });
-    if (currentAppKey === 'weather') {
-      renderActiveWeatherWindow();
-    }
   };
 
   ctx.eventSource.on(messageReceivedEvent, handleAssistantMessage);

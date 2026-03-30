@@ -38,6 +38,13 @@
   .grid-item.is-selected {
     color: var(--menu-active-color, var(--accent-soft));
   }
+  body.theme-black .grid-item:hover > span,
+  body.theme-black .grid-item.is-selected > span {
+    background: linear-gradient(90deg, #f0a0c0, #c08de8, #7b8bf5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .grid-item .icon {
     width: 22px;
     height: 22px;
@@ -64,6 +71,15 @@
   .grid-item.is-selected .icon svg {
     stroke: currentColor;
     filter: drop-shadow(0 0 var(--menu-icon-glow-size, 3px) var(--menu-icon-glow-color, var(--signal-glow)));
+  }
+  body.theme-black .grid-item:hover .icon svg,
+  body.theme-black .grid-item.is-selected .icon svg {
+    stroke: url(#menu-icon-grad);
+    filter: drop-shadow(0 0 3px rgba(176, 138, 232, 0.7));
+  }
+  body.theme-black .grid-item:hover .icon svg [fill="currentColor"],
+  body.theme-black .grid-item.is-selected .icon svg [fill="currentColor"] {
+    fill: url(#menu-icon-grad);
   }
   .app-window {
     position: absolute;
