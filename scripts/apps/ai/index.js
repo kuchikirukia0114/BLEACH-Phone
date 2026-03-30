@@ -49,6 +49,7 @@ const BLEACH_PHONE_ST_USER_INFO_SOURCE_ID = '__st_user_info__';
 let isBleachPhoneChatsVariableEventsBound = false;
 let isBleachPhoneChatGenerationEventsBound = false;
 let aiReplyChatScheduledTimers = [];
+let hasLoggedAiWorldBookCompatDiagnostics = false;
 
 function isAiPresetWorkspaceActive() {
   return currentAppKey === 'settings'
@@ -1691,30 +1692,174 @@ function getAiPresetStUserInfoSlotText() {
   }, null, 2);
 }
 
+function logAiWorldBookCompatibilityDiagnostics({ force = false, phase = '' } = {}) {
+  const stApi = getSTAPI();
+  const ctx = getSillyTavernContext();
+  const diagnostics = {
+    phase: String(phase || '').trim() || 'worldbook',
+    hasSTApiWorldBookList: typeof stApi?.worldBook?.list === 'function',
+    hasSTApiWorldBookGet: typeof stApi?.worldBook?.get === 'function',
+    hasCtxLoadWorldInfo: typeof ctx?.loadWorldInfo === 'function'
+  };
+  if (!hasLoggedAiWorldBookCompatDiagnostics || force) {
+    console.info('[世界书兼容诊断]', diagnostics);
+    hasLoggedAiWorldBookCompatDiagnostics = true;
+  }
+  return diagnostics;
+}
+
+function getAiLegacyBoundWorldBookName(scope = '') {
+  const ctx = getSillyTavernContext();
+  const normalizedScope = String(scope || '').trim().toLowerCase();
+  if (normalizedScope === 'chat') {
+    return String(ctx?.chatMetadata?.world_info || ctx?.chatMetadata?.worldInfo || '').trim();
+  }
+  if (normalizedScope === 'character') {
+    const characterId = Number.parseInt(String(ctx?.characterId ?? ''), 10);
+    const character = Array.isArray(ctx?.characters) && Number.isInteger(characterId) && characterId >= 0
+      ? ctx.characters[characterId] || null
+      : null;
+    return String(
+      character?.data?.extensions?.world
+      || character?.extensions?.world
+      || character?.worldBook?.name
+      || ''
+    ).trim();
+  }
+  return '';
+}
+
+function resolveAiLegacyWorldBookName(name = '', scope = '') {
+  const normalizedName = String(name || '').trim();
+  const normalizedScope = String(scope || '').trim().toLowerCase();
+  if (normalizedScope === 'chat' || normalizedName === 'Current Chat') {
+    return getAiLegacyBoundWorldBookName('chat');
+  }
+  if (normalizedScope === 'character' || normalizedName === 'Current Character') {
+    return getAiLegacyBoundWorldBookName('character');
+  }
+  return normalizedName;
+}
+
+function normalizeAiCompatWorldBookResult(rawResult, { fallbackName = '', fallbackScope = 'global' } = {}) {
+  if (!rawResult || typeof rawResult !== 'object') return null;
+  const directBook = rawResult?.worldBook && typeof rawResult.worldBook === 'object'
+    ? rawResult.worldBook
+    : (Array.isArray(rawResult?.entries) ? rawResult : null);
+  if (!directBook) return null;
+  const entries = Array.isArray(directBook.entries) ? directBook.entries : [];
+  return {
+    worldBook: {
+      ...directBook,
+      name: String(directBook.name || rawResult?.name || fallbackName || '').trim() || String(fallbackName || '').trim(),
+      entries
+    },
+    scope: String(rawResult?.scope || fallbackScope || 'global').trim() || 'global'
+  };
+}
+
+function getAiCompatLegacyWorldBookOptions() {
+  const ctx = getSillyTavernContext();
+  const options = [];
+  const seenIds = new Set();
+  const appendOption = (name, scope, ownerId = '') => {
+    const normalizedName = String(name || '').trim();
+    const normalizedScope = String(scope || 'global').trim() || 'global';
+    const normalizedOwnerId = String(ownerId || '').trim();
+    if (!normalizedName) return;
+    const optionId = `${normalizedScope}:${normalizedName}`;
+    if (seenIds.has(optionId)) return;
+    seenIds.add(optionId);
+    options.push({
+      id: optionId,
+      name: normalizedName,
+      scope: normalizedScope,
+      ownerId: normalizedOwnerId
+    });
+  };
+
+  appendOption(
+    getAiLegacyBoundWorldBookName('chat'),
+    'chat',
+    typeof ctx?.getCurrentChatId === 'function' ? (ctx.getCurrentChatId() || '') : String(ctx?.chatId || '')
+  );
+  appendOption(
+    getAiLegacyBoundWorldBookName('character'),
+    'character',
+    String(ctx?.characterId ?? '')
+  );
+  return options;
+}
+
+async function getAiCompatWorldBook(name = '', { scope = '' } = {}) {
+  const normalizedName = String(name || '').trim();
+  const normalizedScope = String(scope || '').trim().toLowerCase();
+  const stApi = getSTAPI();
+  if (typeof stApi?.worldBook?.get === 'function') {
+    return stApi.worldBook.get({ name: normalizedName, scope: normalizedScope || undefined });
+  }
+
+  logAiWorldBookCompatibilityDiagnostics({ phase: 'getAiCompatWorldBook' });
+
+  const ctx = getSillyTavernContext();
+  if (typeof ctx?.loadWorldInfo !== 'function') {
+    return null;
+  }
+
+  const resolvedName = resolveAiLegacyWorldBookName(normalizedName, normalizedScope);
+  if (!resolvedName) {
+    return null;
+  }
+
+  const attemptFactories = [
+    () => ctx.loadWorldInfo(resolvedName),
+    () => ctx.loadWorldInfo({ name: resolvedName, scope: normalizedScope || undefined }),
+    () => ctx.loadWorldInfo(resolvedName, normalizedScope || undefined)
+  ];
+
+  for (const createAttempt of attemptFactories) {
+    try {
+      const rawResult = await createAttempt();
+      const normalizedResult = normalizeAiCompatWorldBookResult(rawResult, {
+        fallbackName: resolvedName,
+        fallbackScope: normalizedScope || 'global'
+      });
+      if (normalizedResult) {
+        return normalizedResult;
+      }
+    } catch (error) {}
+  }
+  return null;
+}
+
 async function loadAiPresetWorldBookOptions() {
+  logAiWorldBookCompatibilityDiagnostics({ phase: 'loadAiPresetWorldBookOptions' });
   aiPresetWorldBookStatus = '读取中...';
   aiPresetWorldBookOptions = [];
   if (currentAppKey === 'settings') renderAppWindow('settings');
   try {
     const stApi = getSTAPI();
-    if (!stApi?.worldBook?.list) {
-      aiPresetWorldBookStatus = '当前环境不支持';
-      if (currentAppKey === 'settings') renderAppWindow('settings');
-      return [];
+    let nextOptions = [];
+    if (typeof stApi?.worldBook?.list === 'function') {
+      const result = await stApi.worldBook.list();
+      nextOptions = Array.isArray(result?.worldBooks)
+        ? result.worldBooks
+          .map((book, index) => ({
+            id: typeof book?.name === 'string' ? `${book.scope || 'global'}:${book.name}` : `book_${index}`,
+            name: String(book?.name || '').trim(),
+            scope: String(book?.scope || 'global').trim() || 'global',
+            ownerId: String(book?.ownerId || '').trim()
+          }))
+          .filter((book) => book.name)
+        : [];
+      aiPresetWorldBookStatus = nextOptions.length ? '' : '暂无世界书';
+    } else {
+      nextOptions = getAiCompatLegacyWorldBookOptions();
+      aiPresetWorldBookStatus = nextOptions.length
+        ? '当前环境缺少 worldBook.list；仅显示当前角色/当前聊天已绑定世界书'
+        : '当前环境缺少 worldBook.list；请升级 SillyTavern 以获取完整世界书列表';
     }
-    const result = await stApi.worldBook.list();
-    const nextOptions = Array.isArray(result?.worldBooks)
-      ? result.worldBooks
-        .map((book, index) => ({
-          id: typeof book?.name === 'string' ? `${book.scope || 'global'}:${book.name}` : `book_${index}`,
-          name: String(book?.name || '').trim(),
-          scope: String(book?.scope || 'global').trim() || 'global',
-          ownerId: String(book?.ownerId || '').trim()
-        }))
-        .filter((book) => book.name)
-      : [];
     aiPresetWorldBookOptions = nextOptions;
-    aiPresetWorldBookStatus = nextOptions.length ? '' : '暂无世界书';
     const editingBlock = editingAiPresetBlockIndex >= 0
       ? normalizeAiPresetBlocks(pendingAiPresetBlocks)[editingAiPresetBlockIndex] || null
       : null;
@@ -2662,13 +2807,11 @@ async function getAiPresetWorldInfoSlotText(block, activeContact = null, { pendi
     return buildAiWorldBookTriggerMessage(configuredEntry, activeContact, { pendingTargets });
   }
   if (!sourceName) return '';
-  const stApi = getSTAPI();
-  if (typeof stApi?.worldBook?.get !== 'function') return '';
   try {
-    const result = await stApi.worldBook.get({
-      name: sourceName,
+    const result = await getAiCompatWorldBook(sourceName, {
       scope: sourceScope || undefined
     });
+    if (!result?.worldBook) return '';
     const entries = Array.isArray(result?.worldBook?.entries) ? result.worldBook.entries : [];
     const enabledEntries = entries.filter((entry) => entry?.enabled !== false && String(entry?.content || '').trim());
     if (!enabledEntries.length) return '';
@@ -2716,8 +2859,6 @@ function getAiWorldBookInfoBindingText(binding = null, activeContact = null, { p
 
 async function buildAiWorldBookTriggerMessage(entry = null, activeContact = null, { pendingTargets = [] } = {}) {
   if (!entry?.name) return '';
-  const stApi = getSTAPI();
-  if (typeof stApi?.worldBook?.get !== 'function') return '';
   const contextParts = [];
   try {
     const mainChatMessages = await buildAiMainChatHistoryMessages({
@@ -2742,10 +2883,10 @@ async function buildAiWorldBookTriggerMessage(entry = null, activeContact = null
   const contextText = contextParts.filter(Boolean).join('\n\n').trim();
   if (!contextText) return '';
   try {
-    const result = await stApi.worldBook.get({
-      name: String(entry.name || '').trim(),
+    const result = await getAiCompatWorldBook(String(entry.name || '').trim(), {
       scope: String(entry.scope || '').trim() || undefined
     });
+    if (!result?.worldBook) return '';
     const worldBookEntries = Array.isArray(result?.worldBook?.entries) ? result.worldBook.entries : [];
     const matchedEntries = worldBookEntries
       .filter((worldBookEntry) => worldBookEntry?.enabled !== false && String(worldBookEntry?.content || '').trim())
