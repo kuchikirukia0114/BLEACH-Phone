@@ -4481,6 +4481,9 @@ applyTheme(currentTheme);
 applyFontSize(currentFontSizeKey);
 
 function bindAiPersistentEventHooks() {
+  if (typeof ensureBleachPhoneEmbeddedWorldBookApis === 'function') {
+    ensureBleachPhoneEmbeddedWorldBookApis();
+  }
   if (typeof bindBleachPhoneChatsVariableEvents === 'function') {
     bindBleachPhoneChatsVariableEvents();
   }
